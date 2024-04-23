@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields};
+use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, Ident};
 
-#[proc_macro_derive(Args)]
+#[proc_macro_derive(SArg)]
 pub fn args(i: TokenStream) -> TokenStream {
     let pi = parse_macro_input!(i as DeriveInput);
     let fields = match &pi.data {
@@ -15,13 +15,29 @@ pub fn args(i: TokenStream) -> TokenStream {
 
     let ident = &pi.ident;
     let field_names = fields.iter().map(|f| &f.ident);
+    let field_names2 = field_names.clone();
+    let field_names3 = field_names.clone();
+    let field_types = fields.iter().map(|f| &f.ty);
+    let field_types2 = field_types.clone();
+
+    let result_ty_name = format!("Result{}", ident);
+    let result_ty = Ident::new(&result_ty_name, ident.span());
+    let result_ty2 = result_ty.clone();
 
     let o = quote! {
-        impl #ident for Args {
-            fn parse(c: Ctx, t: &Vec<String>) -> Self {
-                Self {
+        struct #result_ty {
+            #(
+                #field_names: <#field_types as SArg>::R,
+            )*
+        }
+
+        impl SArg for #ident {
+            type R = #result_ty2;
+
+            fn parse(name: &'static str, am: & mut ArgMap) -> Self::R {
+                Self::R {
                     #(
-                        #field_names: parse_arg(c, stringify!(#field_names), t),
+                        #field_names2: <#field_types2 as SArg>::parse(stringify!(#field_names2), am),
                     )*
                 }
             }

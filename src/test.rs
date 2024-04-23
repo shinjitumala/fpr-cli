@@ -15,12 +15,15 @@ fn test() {
         format!("bar"),
         format!("-baz"),
         format!("-nyom"),
-        format!("-aaa"),
+        format!("-baa"),
         format!("a"),
         format!("b"),
         format!("c"),
+        format!("-name"),
+        format!("c"),
     ];
-    let r = to_tokens(&args);
+    let mut r = to_argmap(&args);
+    <Test as SArg>::parse("", & mut r);
     println!("{:?}", r);
 }
 
@@ -44,7 +47,7 @@ fn test() {
 //
 // fn foo() {
 //     let b = B{};
-//     
+//
 //     {
 //         foo: b.bar(),
 //     }
