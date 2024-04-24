@@ -24,7 +24,7 @@ impl Tkns {
 
 type ArgMap = HashMap<String, Tkns>;
 
-fn add_prefix(name: &'static str) -> String {
+fn add_prefix(name: &String) -> String {
     format!("{}{}", PFX, name)
 }
 
@@ -146,13 +146,13 @@ impl<Ctx: Sized, R: SArg> Arg<Ctx, R> {
     fn parse(name: &'static str, tkns: &mut ArgMap) -> R::R {
         <R as SArg>::parse(name, tkns)
     }
-    fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)> {
-        let d = match self.desc {
-            Desc::Static(s) => s.to_owned(),
-            Desc::Dyn(ref d) => d(c).to_owned(),
-        };
-        vec![(name.to_string(), d)]
-    }
+    // fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)> {
+    //     let d = match self.desc {
+    //         Desc::Static(s) => s.to_owned(),
+    //         Desc::Dyn(ref d) => d(c).to_owned(),
+    //     };
+    //     vec![(name.to_string(), d)]
+    // }
 }
 impl<Ctx: Sized, R: SArg> SArg for Arg<Ctx, R> {
     type R = <R as SArg>::R;
@@ -166,21 +166,62 @@ trait DArg<Ctx: Sized> {
     fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)>;
 }
 
-impl<Ctx: Sized, S: SArg> DArg<Ctx> for Arg<Ctx, S> {
+impl<Ctx: Sized, P: Parse> DArg<Ctx> for Arg<Ctx, Require<P>> {
     fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)> {
         let d = match self.desc {
             Desc::Static(ref a) => a.to_string(),
             Desc::Dyn(ref f) => f(c),
         };
-        vec![(name.to_string(), d)]
+        vec![(name.to_string(), format!("Required {}", d))]
     }
 }
 
-pub fn parse<A: SArg>(args: &[String]) -> <A as SArg>::R {
+impl<Ctx: Sized, P: Parse> DArg<Ctx> for Arg<Ctx, Option<P>> {
+    fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)> {
+        let d = match self.desc {
+            Desc::Static(ref a) => a.to_string(),
+            Desc::Dyn(ref f) => f(c),
+        };
+        vec![(name.to_string(), format!("Optional {}", d))]
+    }
+}
+
+impl<Ctx: Sized, P: Parse> DArg<Ctx> for Arg<Ctx, Vec<P>> {
+    fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)> {
+        let d = match self.desc {
+            Desc::Static(ref a) => a.to_string(),
+            Desc::Dyn(ref f) => f(c),
+        };
+        vec![(name.to_string(), format!("Array    {}", d))]
+    }
+}
+
+fn print_table(d: &Vec<(String, String)>) -> String {
+    let r0 = d
+        .iter()
+        .map(|v| v.0.len() + PFX.len())
+        .max()
+        .expect("Data should not be empty.");
+    let r1 = d
+        .iter()
+        .map(|v| v.1.len())
+        .max()
+        .expect("Data should not be empty.");
+    d.iter()
+        .map(|v| format!("{0:1$} {2:3$}", add_prefix(&v.0), r0, v.1, r1))
+        .join("\n")
+}
+
+pub fn parse<Ctx: Sized, A: DArg<Ctx> + SArg + Default>(
+    ctx: &Ctx,
+    args: &[String],
+) -> <A as SArg>::R {
     let mut am = to_argmap(&args);
 
     match am.get("help") {
         Some(_) => {
+            let a = A::default();
+            println!("Usage:\n{}", print_table(&a.desc("", ctx)));
             process::exit(0);
         }
         None => (),

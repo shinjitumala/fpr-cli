@@ -1,18 +1,24 @@
 use super::*;
 
 struct Ctx {}
+use smart_default::SmartDefault;
 
-#[derive(SArg)]
+#[derive(SArg, SmartDefault)]
 #[ctx(Ctx)]
 struct Test2 {
+    #[default(_code = "Arg::new(Desc::Static(\"foo\"))")]
     next: Arg<Ctx, Option<String>>,
 }
 
-#[derive(SArg)]
+#[derive(SArg, SmartDefault)]
 #[ctx(Ctx)]
 struct Test {
+    #[default(_code = "Arg::new(Desc::Static(\"foo\"))")]
     name: Arg<Ctx, Require<i32>>,
+    #[default(_code = "Arg::new(Desc::Static(\"foo\"))")]
     id: Arg<Ctx, Option<A>>,
+    #[default(_code = "Arg::new(Desc::Static(\"focwo\"))")]
+    ids: Arg<Ctx, Vec<i32>>,
     test: Test2,
 }
 
@@ -40,12 +46,14 @@ fn test() {
         // format!("-baa"),
         // format!("a"),
         // format!("b"),
-        // format!("c"),
+        format!("-help"),
         format!("-name"),
         format!("10"),
     ];
 
-    let x = parse::<Test>(&args);
+    let ctx = Ctx {};
+
+    let x = parse::<Ctx, Test>(&ctx, &args);
     println!("{:?}", x);
 
     let y = Test2 {

@@ -10,3 +10,4 @@ edition = "2021"
 cli-derive = { version = "0.1.0", path = "cli-derive" }
 itertools = "0.12.1"
 regex = "1.10.4"
+smart-default = "0.7.1"
