@@ -3,66 +3,54 @@ use super::*;
 struct Ctx {}
 use smart_default::SmartDefault;
 
-#[derive(SArg, SmartDefault)]
+// type Req<T: Parse> = Arg<Ctx, super::Req<One<T>>>;
+
+#[derive(Args, SmartDefault)]
+// #[derive(Args)]
 #[ctx(Ctx)]
 struct Test2 {
     #[default(_code = "Arg::s(\"foo\")")]
-    next: Arg<Ctx, Option<String>>,
+    next: Arg<Ctx, Opt<One<String>>>,
 }
 
-#[derive(SArg, SmartDefault)]
+#[derive(Args, SmartDefault)]
+// #[derive(Args)]
 #[ctx(Ctx)]
 struct Test {
-    #[default(_code = "Arg::d(|c| format!(\"FOO\"))")]
-    name: Arg<Ctx, Require<i32>>,
+    // #[default(_code = "Arg::d(|c| format!(\"FOO\"))")]
+    #[default(_code = "Arg::new(Desc::Dyn(|c| format!(\"FOO\")),Init::Const(1))")]
+    name: Arg<Ctx, Req<One<i32>>>,
     #[default(_code = "Arg::s(\"foo\")")]
-    id: Arg<Ctx, Option<A>>,
+    id: Arg<Ctx, Opt<One<A>>>,
     #[default(_code = "Arg::s(\"focwo\")")]
-    ids: Arg<Ctx, Vec<i32>>,
+    ids: Arg<Ctx, Opt<Vec<i32>>>,
     test: Test2,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct A {
     name: String,
 }
 impl Parse for A {
-    fn parse(name: &'static str, tkn: &String) -> Self {
-        todo!()
+    fn parse(_name: &'static str, tkn: &String) -> ParseResult<Self> {
+        Ok(Self {
+            name: tkn.to_owned(),
+        })
     }
 }
 
 #[test]
 fn test() {
     let args = vec![
-        // format!("-aaa"),
-        // format!("a"),
-        // format!("b"),
-        // format!("c"),
-        // format!("-foo"),
-        // format!("bar"),
-        // format!("-baz"),
-        // format!("-nyom"),
-        // format!("-baa"),
-        // format!("a"),
-        // format!("b"),
-        format!("-help"),
-        format!("-name"),
-        format!("10"),
+        format!("-id"),
+        format!("foo"),
+        // format!("-help"),
+        // format!("-name"),
+        // format!("10"),
     ];
 
     let ctx = Ctx {};
 
-    let x = parse::<Ctx, Test>(&ctx, &args);
+    let x = parse::<Ctx, Test>(&ctx, &args).expect("Parse failed.");
     println!("{:?}", x);
-
-    let y = Test2 {
-        next: Arg::<Ctx, Option<String>>::new(Desc::Static("DESCRIPTION")),
-    };
-
-    for a in y.desc("", &Ctx {}) {
-        println!("{} {}", a.0, a.1);
-    }
-
-    // x.desc(&Ctx{})
 }

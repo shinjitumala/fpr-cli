@@ -1,5 +1,5 @@
 use regex::Regex;
-use std::{collections::HashMap, process, str::FromStr};
+use std::{collections::HashMap, fmt::Debug, process, str::FromStr};
 
 use cli_derive::*;
 use itertools::Itertools;
@@ -59,148 +59,230 @@ fn to_argmap(args: &[String]) -> ArgMap {
     res
 }
 
-trait Parse {
-    fn parse(name: &'static str, tkn: &String) -> Self;
+type ParseResult<T> = Result<T, String>;
+
+pub trait Parse
+where
+    Self: Sized + Clone + Debug,
+{
+    fn parse(name: &'static str, tkn: &String) -> ParseResult<Self>;
 }
 
-impl<T: FromStr> Parse for T {
-    fn parse(name: &'static str, tkn: &String) -> Self {
+impl<T: FromStr + Clone + Debug> Parse for T {
+    fn parse(name: &'static str, tkn: &String) -> ParseResult<Self> {
         match Self::from_str(tkn) {
-            Ok(v) => v,
-            Err(_) => panic!("Failed to parse '{}': {}", name, tkn),
+            Ok(v) => Ok(v),
+            Err(_) => Err(format!("Failed to parse '{}': {}", name, tkn)),
         }
     }
 }
 
-struct Require<T: Parse> {
+struct One<T: Parse> {
     v: T,
 }
 
-pub trait SArg {
+pub trait Parse2
+where
+    Self: Sized,
+    Self::R: Clone + Debug,
+{
     type R;
-    fn parse(name: &'static str, am: &mut ArgMap) -> Self::R;
+    fn parse(name: &'static str, tkns: &[String]) -> ParseResult<Self::R>;
+    fn desc() -> &'static str;
 }
 
-impl<T: Parse> SArg for Option<T> {
-    type R = Option<T>;
-    fn parse(name: &'static str, am: &mut ArgMap) -> Self::R {
-        match am.get_mut(name) {
-            Some(v) => {
-                v.consume(name);
-                Option::Some(<Require<T> as SArg>::parse(name, am))
-            }
-            None => Option::None,
-        }
-    }
-}
-
-impl<T: Parse> SArg for Vec<T> {
-    type R = Vec<T>;
-    fn parse(name: &'static str, tkns: &mut ArgMap) -> Self::R {
-        match tkns.get_mut(name) {
-            Some(v) => {
-                v.consume(name);
-                v.tkns
-                    .iter()
-                    .map(|t| <T as Parse>::parse(name, t))
-                    .collect()
-            }
-            None => panic!("Expected at least one value for '{}'.", name),
-        }
-    }
-}
-
-impl<T: Parse> SArg for Require<T> {
+impl<T: Parse> Parse2 for One<T> {
     type R = T;
-    fn parse(name: &'static str, am: &mut ArgMap) -> Self::R {
+    fn parse(name: &'static str, tkns: &[String]) -> Result<Self::R, String> {
+        if tkns.len() == 1 {
+            Ok(T::parse(name, &tkns[0])?)
+        } else {
+            Err(format!("Expected single value for '{}': {:?}", name, tkns))
+        }
+    }
+
+    fn desc() -> &'static str {
+        "   "
+    }
+}
+
+impl<T: Parse> Parse2 for Vec<T> {
+    type R = Vec<T>;
+    fn parse(name: &'static str, tkns: &[String]) -> Result<Self::R, String> {
+        if tkns.len() == 0 {
+            Err(format!("Expected at least one value for '{}'", name))
+        } else {
+            Ok(tkns.iter().map(|t| T::parse(name, t)).try_collect()?)
+        }
+    }
+    fn desc() -> &'static str {
+        "Arr"
+    }
+}
+
+pub struct Req<T: Parse2> {
+    _v: T,
+}
+
+pub struct Opt<T: Parse2> {
+    _v: Option<T>,
+}
+
+enum Init<Ctx, T: Parse2> {
+    None,
+    Const(T::R),
+    Dyn(fn(&Ctx) -> T::R),
+}
+
+fn get_init<Ctx, T: Parse2>(c: &Ctx, init: &Init<Ctx, T>) -> Option<T::R> {
+    match init {
+        Init::None => None,
+        Init::Const(ref t) => Some(t.to_owned()),
+        Init::Dyn(f) => Some(f(c)),
+    }
+}
+
+trait Parse3<Ctx>
+where
+    Self::Init: Parse2,
+{
+    type R;
+    type Init;
+    fn parse(
+        c: &Ctx,
+        name: &'static str,
+        init: &Init<Ctx, Self::Init>,
+        am: &mut ArgMap,
+    ) -> ParseResult<Self::R>;
+    fn desc() -> String;
+}
+
+impl<Ctx, T: Parse2> Parse3<Ctx> for Req<T> {
+    type R = T::R;
+    type Init = T;
+
+    fn parse(
+        c: &Ctx,
+        name: &'static str,
+        init: &Init<Ctx, Self::Init>,
+        am: &mut ArgMap,
+    ) -> ParseResult<Self::R> {
         match am.get_mut(name) {
             Some(v) => {
                 v.consume(name);
-                if v.tkns.len() != 1 {
-                    panic!("Expected single vlaue for '{}': {:?}", name, v.tkns)
-                }
-                <T as Parse>::parse(name, &v.tkns[0])
+                T::parse(name, &v.tkns)
             }
-            None => panic!("Argument '{}' is required.", name),
+            None => match get_init(c, init) {
+                Some(e) => Ok(e),
+                None => Err(format!("Argument '{}' is required.", name)),
+            },
         }
     }
+    fn desc() -> String {
+        format!("Req {}", T::desc())
+    }
+}
+impl<Ctx, T: Parse2> Parse3<Ctx> for Opt<T> {
+    type Init = T;
+    type R = Option<T::R>;
+
+    fn parse(
+        c: &Ctx,
+        name: &'static str,
+        init: &Init<Ctx, Self::Init>,
+        am: &mut ArgMap,
+    ) -> ParseResult<Self::R> {
+        match am.get_mut(name) {
+            Some(v) => {
+                v.consume(name);
+                Ok(Some(T::parse(name, &v.tkns)?))
+            }
+            None => match get_init(c, init) {
+                Some(e) => Ok(Some(e)),
+                None => Ok(None),
+            },
+        }
+    }
+    fn desc() -> String {
+        format!("Opt {}", T::desc())
+    }
+}
+
+trait ArgT<Ctx, T: Parse3<Ctx>> {
+    fn desc(&self, c: &Ctx) -> String;
+    fn parse(&self, c: &Ctx, name: &'static str, am: &mut ArgMap) -> ParseResult<T::R>;
 }
 
 enum Desc<Ctx: Sized> {
-    Static(&'static str),
+    Const(&'static str),
     Dyn(fn(&Ctx) -> String),
 }
 
-enum Init<Ctx: Sized, S: SArg> {
-    Static(S),
-    Dyn(fn(&Ctx) -> S),
-}
-
-struct Arg<Ctx: Sized, S: SArg> {
+struct Arg<Ctx, T: Parse3<Ctx>>
+where
+    T::Init: Parse2,
+{
+    init: Init<Ctx, T::Init>,
     desc: Desc<Ctx>,
-    parse: fn(name: &'static str, tkns: &mut ArgMap) -> S::R,
-    init: Option<Init<Ctx, S>>,
 }
 
-impl<Ctx: Sized, R: SArg> Arg<Ctx, R> {
-    fn new(desc: Desc<Ctx>, init: Option<Init<Ctx, R>>) -> Self {
-        Self {
-            desc,
-            parse: Self::parse,
-            init,
+impl<Ctx, T: Parse3<Ctx>> ArgT<Ctx, T> for Arg<Ctx, T>
+where
+    T::Init: Parse2,
+{
+    fn desc(&self, c: &Ctx) -> String {
+        let x = format!(
+            "{} {}",
+            T::desc(),
+            match self.desc {
+                Desc::Const(c) => c.to_string(),
+                Desc::Dyn(f) => f(c),
+            }
+        );
+        match get_init(c, &self.init) {
+            Some(ref i) => format!("{} (default: {:?})", x, i),
+            None => x,
         }
     }
 
+    fn parse(&self, c: &Ctx, name: &'static str, am: &mut ArgMap) -> ParseResult<T::R> {
+        T::parse(c, name, &self.init, am)
+    }
+}
+
+impl<Ctx, T: Parse3<Ctx>> Arg<Ctx, T>
+where
+    T::Init: Parse2,
+{
+    fn new(desc: Desc<Ctx>, init: Init<Ctx, T::Init>) -> Self {
+        Self { desc, init }
+    }
     fn s(desc: &'static str) -> Self {
-        Self::new(Desc::<Ctx>::Static(desc), Option::None)
+        Self::new(Desc::<Ctx>::Const(desc), Init::None)
     }
     fn d(f: fn(&Ctx) -> String) -> Self {
-        Self::new(Desc::<Ctx>::Dyn(f), Option::None)
-    }
-
-    fn parse(name: &'static str, tkns: &mut ArgMap) -> R::R {
-        <R as SArg>::parse(name, tkns)
-    }
-}
-impl<Ctx: Sized, R: SArg> SArg for Arg<Ctx, R> {
-    type R = <R as SArg>::R;
-
-    fn parse(name: &'static str, tkns: &mut ArgMap) -> Self::R {
-        <R as SArg>::parse(name, tkns)
+        Self::new(Desc::<Ctx>::Dyn(f), Init::None)
     }
 }
 
-pub trait DArg<Ctx: Sized> {
+pub trait Args<Ctx> {
+    type R;
     fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)>;
+    fn parse(&self, name: &'static str, c: &Ctx, am: &mut ArgMap) -> ParseResult<Self::R>;
 }
 
-impl<Ctx: Sized, P: Parse> DArg<Ctx> for Arg<Ctx, Require<P>> {
+impl<Ctx, T: Parse3<Ctx>> Args<Ctx> for Arg<Ctx, T>
+where
+    T::Init: Parse2,
+{
+    type R = T::R;
+
     fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)> {
-        let d = match self.desc {
-            Desc::Static(ref a) => a.to_string(),
-            Desc::Dyn(ref f) => f(c),
-        };
-        vec![(name.to_string(), format!("Required {}", d))]
+        vec![(name.to_string(), ArgT::desc(self, c))]
     }
-}
 
-impl<Ctx: Sized, P: Parse> DArg<Ctx> for Arg<Ctx, Option<P>> {
-    fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)> {
-        let d = match self.desc {
-            Desc::Static(ref a) => a.to_string(),
-            Desc::Dyn(ref f) => f(c),
-        };
-        vec![(name.to_string(), format!("Optional {}", d))]
-    }
-}
-
-impl<Ctx: Sized, P: Parse> DArg<Ctx> for Arg<Ctx, Vec<P>> {
-    fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)> {
-        let d = match self.desc {
-            Desc::Static(ref a) => a.to_string(),
-            Desc::Dyn(ref f) => f(c),
-        };
-        vec![(name.to_string(), format!("Array    {}", d))]
+    fn parse(&self, name: &'static str, c: &Ctx, am: &mut ArgMap) -> ParseResult<Self::R> {
+        ArgT::parse(self, c, name, am)
     }
 }
 
@@ -220,22 +302,22 @@ fn print_table(d: &Vec<(String, String)>) -> String {
         .join("\n")
 }
 
-pub fn parse<Ctx: Sized, A: DArg<Ctx> + SArg + Default>(
+pub fn parse<Ctx: Sized, A: Args<Ctx> + Default>(
     ctx: &Ctx,
     args: &[String],
-) -> <A as SArg>::R {
+) -> ParseResult<<A as Args<Ctx>>::R> {
     let mut am = to_argmap(&args);
+    let a = A::default();
 
     match am.get("help") {
         Some(_) => {
-            let a = A::default();
             println!("Usage:\n{}", print_table(&a.desc("", ctx)));
             process::exit(0);
         }
         None => (),
     }
 
-    let r = <A as SArg>::parse("", &mut am);
+    let r = a.parse("", ctx, &mut am);
 
     let errs: Vec<String> = am
         .iter()

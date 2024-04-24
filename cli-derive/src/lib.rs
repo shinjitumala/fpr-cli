@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, Ident};
 
-#[proc_macro_derive(SArg, attributes(ctx))]
+#[proc_macro_derive(Args, attributes(ctx))]
 pub fn args(i: TokenStream) -> TokenStream {
     let pi = parse_macro_input!(i as DeriveInput);
     let fields = match &pi.data {
@@ -18,7 +18,6 @@ pub fn args(i: TokenStream) -> TokenStream {
     let field_names2 = field_names.clone();
     let field_names3 = field_names.clone();
     let field_types = fields.iter().map(|f| &f.ty);
-    let field_types2 = field_types.clone();
 
     let result_ty_name = format!("Result{}", ident);
     let result_ty = Ident::new(&result_ty_name, ident.span());
@@ -39,32 +38,29 @@ pub fn args(i: TokenStream) -> TokenStream {
         #[derive(Debug)]
         struct #result_ty {
             #(
-                #field_names: <#field_types as SArg>::R,
+                #field_names: <#field_types as Args<#ctx>>::R,
             )*
         }
 
-        impl SArg for #ident {
+        impl Args<#ctx> for #ident {
             type R = #result_ty2;
 
-            fn parse(name: &'static str, am: & mut ArgMap) -> Self::R {
-                Self::R {
+            fn parse(&self, name: &'static str, c: &#ctx, am: &mut ArgMap) -> ParseResult<Self::R> {
+                Ok(Self::R {
                     #(
-                        #field_names2: <#field_types2 as SArg>::parse(stringify!(#field_names2), am),
+                        #field_names2: Args::parse(&self.#field_names2, stringify!(#field_names2), c, am)?,
                     )*
-                }
+                })
             }
-        }
 
-        impl DArg<#ctx> for #ident {
-            fn desc(&self, _:&'static str, c: &#ctx) -> Vec<(String,String)> {
+            fn desc(&self, name: &'static str, c: &#ctx) -> Vec<(String, String)> {
                 let mut r = Vec::<(String,String)>::new();
                 #(
-                    r.extend(self.#field_names3.desc(stringify!(#field_names3), c));
+                    r.extend(Args::desc(&self.#field_names3, stringify!(#field_names3), c));
                 )*
                 r
             }
         }
-
     };
     o.into()
 }
