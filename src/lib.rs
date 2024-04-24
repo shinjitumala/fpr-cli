@@ -131,24 +131,31 @@ enum Desc<Ctx: Sized> {
     Dyn(fn(&Ctx) -> String),
 }
 
+enum Init<Ctx: Sized, S: SArg> {
+    Static(S),
+    Dyn(fn(&Ctx) -> S),
+}
+
 struct Arg<Ctx: Sized, S: SArg> {
     desc: Desc<Ctx>,
     parse: fn(name: &'static str, tkns: &mut ArgMap) -> S::R,
+    init: Option<Init<Ctx, S>>,
 }
 
 impl<Ctx: Sized, R: SArg> Arg<Ctx, R> {
-    fn new(desc: Desc<Ctx>) -> Self {
+    fn new(desc: Desc<Ctx>, init: Option<Init<Ctx, R>>) -> Self {
         Self {
             desc,
             parse: Self::parse,
+            init,
         }
     }
 
     fn s(desc: &'static str) -> Self {
-        Self::new(Desc::<Ctx>::Static(desc))
+        Self::new(Desc::<Ctx>::Static(desc), Option::None)
     }
     fn d(f: fn(&Ctx) -> String) -> Self {
-        Self::new(Desc::<Ctx>::Dyn(f))
+        Self::new(Desc::<Ctx>::Dyn(f), Option::None)
     }
 
     fn parse(name: &'static str, tkns: &mut ArgMap) -> R::R {

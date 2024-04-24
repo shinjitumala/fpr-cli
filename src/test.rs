@@ -10,14 +10,10 @@ struct Test2 {
     next: Arg<Ctx, Option<String>>,
 }
 
-fn test_desc(c: &Ctx) -> String {
-    format!("I AM DYNAMIC!")
-}
-
 #[derive(SArg, SmartDefault)]
 #[ctx(Ctx)]
 struct Test {
-    #[default(_code = "Arg::d(test_desc)")]
+    #[default(_code = "Arg::d(|c| format!(\"FOO\"))")]
     name: Arg<Ctx, Require<i32>>,
     #[default(_code = "Arg::s(\"foo\")")]
     id: Arg<Ctx, Option<A>>,
