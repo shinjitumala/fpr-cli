@@ -6,18 +6,22 @@ use smart_default::SmartDefault;
 #[derive(SArg, SmartDefault)]
 #[ctx(Ctx)]
 struct Test2 {
-    #[default(_code = "Arg::new(Desc::Static(\"foo\"))")]
+    #[default(_code = "Arg::s(\"foo\")")]
     next: Arg<Ctx, Option<String>>,
+}
+
+fn test_desc(c: &Ctx) -> String {
+    format!("I AM DYNAMIC!")
 }
 
 #[derive(SArg, SmartDefault)]
 #[ctx(Ctx)]
 struct Test {
-    #[default(_code = "Arg::new(Desc::Static(\"foo\"))")]
+    #[default(_code = "Arg::d(test_desc)")]
     name: Arg<Ctx, Require<i32>>,
-    #[default(_code = "Arg::new(Desc::Static(\"foo\"))")]
+    #[default(_code = "Arg::s(\"foo\")")]
     id: Arg<Ctx, Option<A>>,
-    #[default(_code = "Arg::new(Desc::Static(\"focwo\"))")]
+    #[default(_code = "Arg::s(\"focwo\")")]
     ids: Arg<Ctx, Vec<i32>>,
     test: Test2,
 }

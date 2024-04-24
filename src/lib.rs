@@ -8,7 +8,7 @@ mod test;
 
 const PFX: &'static str = "-";
 #[derive(Debug)]
-struct Tkns {
+pub struct Tkns {
     tkns: Vec<String>,
     consumed: bool,
 }
@@ -28,7 +28,7 @@ fn add_prefix(name: &String) -> String {
     format!("{}{}", PFX, name)
 }
 
-pub fn to_argmap(args: &[String]) -> ArgMap {
+fn to_argmap(args: &[String]) -> ArgMap {
     let remove_prefix = Regex::new(&format!("^{}", PFX)).unwrap();
 
     let mut res = ArgMap::new();
@@ -76,7 +76,7 @@ struct Require<T: Parse> {
     v: T,
 }
 
-trait SArg {
+pub trait SArg {
     type R;
     fn parse(name: &'static str, am: &mut ArgMap) -> Self::R;
 }
@@ -143,16 +143,17 @@ impl<Ctx: Sized, R: SArg> Arg<Ctx, R> {
             parse: Self::parse,
         }
     }
+
+    fn s(desc: &'static str) -> Self {
+        Self::new(Desc::<Ctx>::Static(desc))
+    }
+    fn d(f: fn(&Ctx) -> String) -> Self {
+        Self::new(Desc::<Ctx>::Dyn(f))
+    }
+
     fn parse(name: &'static str, tkns: &mut ArgMap) -> R::R {
         <R as SArg>::parse(name, tkns)
     }
-    // fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)> {
-    //     let d = match self.desc {
-    //         Desc::Static(s) => s.to_owned(),
-    //         Desc::Dyn(ref d) => d(c).to_owned(),
-    //     };
-    //     vec![(name.to_string(), d)]
-    // }
 }
 impl<Ctx: Sized, R: SArg> SArg for Arg<Ctx, R> {
     type R = <R as SArg>::R;
@@ -162,7 +163,7 @@ impl<Ctx: Sized, R: SArg> SArg for Arg<Ctx, R> {
     }
 }
 
-trait DArg<Ctx: Sized> {
+pub trait DArg<Ctx: Sized> {
     fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)>;
 }
 
