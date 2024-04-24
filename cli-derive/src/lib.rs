@@ -25,6 +25,7 @@ pub fn args(i: TokenStream) -> TokenStream {
     let result_ty2 = result_ty.clone();
 
     let o = quote! {
+        #[derive(Debug)]
         struct #result_ty {
             #(
                 #field_names: <#field_types as SArg>::R,

@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, collections::HashMap, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
 use cli_derive::*;
 use itertools::Itertools;
@@ -80,7 +80,7 @@ impl<T: Parse> SArg for Option<T> {
         match am.get_mut(&format!("{}{}", PFX, name)) {
             Some(v) => {
                 v.consume(name);
-                Option::Some(<Require<T> as SArg>::parse(name, am).v)
+                Option::Some(<Require<T> as SArg>::parse(name, am))
             }
             None => Option::None,
         }
@@ -104,17 +104,15 @@ impl<T: Parse> SArg for Vec<T> {
 }
 
 impl<T: Parse> SArg for Require<T> {
-    type R = Require<T>;
-    fn parse(name: &'static str, tkns: &mut ArgMap) -> Self::R {
-        match tkns.get_mut(&format!("{}{}", PFX, name)) {
+    type R = T;
+    fn parse(name: &'static str, am: &mut ArgMap) -> Self::R {
+        match am.get_mut(&format!("{}{}", PFX, name)) {
             Some(v) => {
                 v.consume(name);
                 if v.tkns.len() != 1 {
-                    panic!("Expected single vlaue for '{}': {:?}", name, tkns)
+                    panic!("Expected single vlaue for '{}': {:?}", name, v.tkns)
                 }
-                Require {
-                    v: <T as Parse>::parse(name, &v.tkns[0]),
-                }
+                <T as Parse>::parse(name, &v.tkns[0])
             }
             None => panic!("Argument '{}' is required.", name),
         }
@@ -148,33 +146,27 @@ impl<Ctx: Sized, R: SArg> Arg<Ctx, R> {
         }
     }
 }
-impl<Ctx: Sized, R: SArg<R = R>> SArg for Arg<Ctx, R> {
-    type R = R;
+impl<Ctx: Sized, R: SArg> SArg for Arg<Ctx, R> {
+    type R = <R as SArg>::R;
 
     fn parse(name: &'static str, tkns: &mut ArgMap) -> Self::R {
         <R as SArg>::parse(name, tkns)
     }
 }
 
-struct FakeCtx {}
+pub fn parse<A: SArg>(args: &[String]) -> <A as SArg>::R {
+    let mut am = to_argmap(&args);
+    let r = <A as SArg>::parse("", &mut am);
 
-#[derive(SArg)]
-struct Test2 {
-    name: Arg<FakeCtx, Require<String>>,
-}
+    let errs: Vec<String> = am
+        .iter()
+        .filter(|a| a.1.consumed == false)
+        .map(|a| format!("Unknown argument: {}", a.0))
+        .collect();
 
-#[derive(SArg)]
-struct Test {
-    name: Arg<FakeCtx, Require<i32>>,
-    id: Arg<FakeCtx, Option<A>>,
-    test: Test2,
-}
-
-struct A {
-    name: String,
-}
-impl Parse for A {
-    fn parse(name: &'static str, tkn: &String) -> Self {
-        todo!()
+    if !errs.is_empty() {
+        panic!("Parse error:\n{}", errs.join("\n"))
     }
+
+    r
 }

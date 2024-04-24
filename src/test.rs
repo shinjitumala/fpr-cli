@@ -1,30 +1,49 @@
 use super::*;
 
-mod ctx {
-    pub struct MyCtx {}
+struct FakeCtx {}
+
+#[derive(SArg)]
+struct Test2 {
+    next: Arg<FakeCtx, Option<String>>,
+}
+
+#[derive(SArg)]
+struct Test {
+    name: Arg<FakeCtx, Require<i32>>,
+    id: Arg<FakeCtx, Option<A>>,
+    test: Test2,
+}
+
+#[derive(Debug)]
+struct A {
+    name: String,
+}
+impl Parse for A {
+    fn parse(name: &'static str, tkn: &String) -> Self {
+        todo!()
+    }
 }
 
 #[test]
 fn test() {
     let args = vec![
-        format!("-aaa"),
-        format!("a"),
-        format!("b"),
-        format!("c"),
-        format!("-foo"),
-        format!("bar"),
-        format!("-baz"),
-        format!("-nyom"),
-        format!("-baa"),
-        format!("a"),
-        format!("b"),
-        format!("c"),
+        // format!("-aaa"),
+        // format!("a"),
+        // format!("b"),
+        // format!("c"),
+        // format!("-foo"),
+        // format!("bar"),
+        // format!("-baz"),
+        // format!("-nyom"),
+        // format!("-baa"),
+        // format!("a"),
+        // format!("b"),
+        // format!("c"),
         format!("-name"),
-        format!("c"),
+        // format!("10"),
     ];
-    let mut r = to_argmap(&args);
-    <Test as SArg>::parse("", & mut r);
-    println!("{:?}", r);
+    let x = parse::<Test>(&args);
+    println!("{:?}", x);
 }
 
 // pub trait A {
