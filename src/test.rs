@@ -1,16 +1,16 @@
 use super::*;
 
-struct FakeCtx {}
+struct Ctx {}
 
 #[derive(SArg)]
 struct Test2 {
-    next: Arg<FakeCtx, Option<String>>,
+    next: Arg<Ctx, Option<String>>,
 }
 
 #[derive(SArg)]
 struct Test {
-    name: Arg<FakeCtx, Require<i32>>,
-    id: Arg<FakeCtx, Option<A>>,
+    name: Arg<Ctx, Require<i32>>,
+    id: Arg<Ctx, Option<A>>,
     test: Test2,
 }
 
@@ -42,32 +42,7 @@ fn test() {
         format!("-name"),
         // format!("10"),
     ];
+
     let x = parse::<Test>(&args);
     println!("{:?}", x);
 }
-
-// pub trait A {
-//     type I;
-//
-//     fn bar(&self) -> Self::I;
-// }
-//
-// struct B {
-//     i: i32 = 1,
-// }
-// impl Default for
-//
-// impl A for B {
-//     type I = i32;
-//     fn bar(&self) -> Self::I {
-//         1
-//     }
-// }
-//
-// fn foo() {
-//     let b = B{};
-//
-//     {
-//         foo: b.bar(),
-//     }
-// }

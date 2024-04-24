@@ -1,4 +1,5 @@
-use std::{collections::HashMap, str::FromStr};
+use regex::Regex;
+use std::{collections::HashMap, process, str::FromStr};
 
 use cli_derive::*;
 use itertools::Itertools;
@@ -24,6 +25,8 @@ impl Tkns {
 type ArgMap = HashMap<String, Tkns>;
 
 pub fn to_argmap(args: &[String]) -> ArgMap {
+    let remove_prefix = Regex::new(&format!("^{}", PFX)).unwrap();
+
     let mut res = ArgMap::new();
 
     let mut idx_arg_names: Vec<usize> = args
@@ -38,7 +41,7 @@ pub fn to_argmap(args: &[String]) -> ArgMap {
         let x = &args[*i];
 
         let r = res.insert(
-            x.to_owned(),
+            remove_prefix.replace_all(x, "").to_string(),
             Tkns {
                 tkns: args[*i + 1..*next].to_owned(),
                 consumed: false,
@@ -77,7 +80,7 @@ trait SArg {
 impl<T: Parse> SArg for Option<T> {
     type R = Option<T>;
     fn parse(name: &'static str, am: &mut ArgMap) -> Self::R {
-        match am.get_mut(&format!("{}{}", PFX, name)) {
+        match am.get_mut(name) {
             Some(v) => {
                 v.consume(name);
                 Option::Some(<Require<T> as SArg>::parse(name, am))
@@ -90,7 +93,7 @@ impl<T: Parse> SArg for Option<T> {
 impl<T: Parse> SArg for Vec<T> {
     type R = Vec<T>;
     fn parse(name: &'static str, tkns: &mut ArgMap) -> Self::R {
-        match tkns.get_mut(&format!("{}{}", PFX, name)) {
+        match tkns.get_mut(name) {
             Some(v) => {
                 v.consume(name);
                 v.tkns
@@ -106,7 +109,7 @@ impl<T: Parse> SArg for Vec<T> {
 impl<T: Parse> SArg for Require<T> {
     type R = T;
     fn parse(name: &'static str, am: &mut ArgMap) -> Self::R {
-        match am.get_mut(&format!("{}{}", PFX, name)) {
+        match am.get_mut(name) {
             Some(v) => {
                 v.consume(name);
                 if v.tkns.len() != 1 {
@@ -154,8 +157,29 @@ impl<Ctx: Sized, R: SArg> SArg for Arg<Ctx, R> {
     }
 }
 
+trait DArg<Ctx: Sized> {
+    fn desc(&self, c: &Ctx) -> String;
+}
+
+impl<Ctx: Sized, S: SArg> DArg<Ctx> for Arg<Ctx, S> {
+    fn desc(&self, c: &Ctx) -> String {
+        match self.desc {
+            Desc::Static(ref a) => a.to_string(),
+            Desc::Dyn(ref f) => f(c),
+        }
+    }
+}
+
 pub fn parse<A: SArg>(args: &[String]) -> <A as SArg>::R {
     let mut am = to_argmap(&args);
+
+    match am.get("help") {
+        Some(_) => {
+            process::exit(0);
+        }
+        None => (),
+    }
+
     let r = <A as SArg>::parse("", &mut am);
 
     let errs: Vec<String> = am

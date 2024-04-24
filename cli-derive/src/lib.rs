@@ -43,6 +43,12 @@ pub fn args(i: TokenStream) -> TokenStream {
                 }
             }
         }
+
+        impl DArg<Ctx> for #ident {
+            fn desc(&self, c: &Ctx) -> String {
+            }
+        }
+
     };
     o.into()
 }
