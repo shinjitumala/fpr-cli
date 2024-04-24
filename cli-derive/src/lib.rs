@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, Ident};
 
-#[proc_macro_derive(SArg)]
+#[proc_macro_derive(SArg, attributes(ctx))]
 pub fn args(i: TokenStream) -> TokenStream {
     let pi = parse_macro_input!(i as DeriveInput);
     let fields = match &pi.data {
@@ -24,6 +24,17 @@ pub fn args(i: TokenStream) -> TokenStream {
     let result_ty = Ident::new(&result_ty_name, ident.span());
     let result_ty2 = result_ty.clone();
 
+    let f = || -> Ident {
+        for attr in &pi.attrs {
+            if attr.path().is_ident("ctx") {
+                let r: Ident = attr.parse_args().unwrap();
+                return r;
+            }
+        }
+        panic!("Attribute 'ctx' is missing.")
+    };
+    let ctx = f();
+
     let o = quote! {
         #[derive(Debug)]
         struct #result_ty {
@@ -44,8 +55,13 @@ pub fn args(i: TokenStream) -> TokenStream {
             }
         }
 
-        impl DArg<Ctx> for #ident {
-            fn desc(&self, c: &Ctx) -> String {
+        impl DArg<#ctx> for #ident {
+            fn desc(&self, _:&'static str, c: &#ctx) -> Vec<(String,String)> {
+                let mut r = Vec::<(String,String)>::new();
+                #(
+                    r.extend(self.#field_names3.desc(stringify!(#field_names3), c));
+                )*
+                r
             }
         }
 

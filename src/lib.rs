@@ -24,6 +24,10 @@ impl Tkns {
 
 type ArgMap = HashMap<String, Tkns>;
 
+fn add_prefix(name: &'static str) -> String {
+    format!("{}{}", PFX, name)
+}
+
 pub fn to_argmap(args: &[String]) -> ArgMap {
     let remove_prefix = Regex::new(&format!("^{}", PFX)).unwrap();
 
@@ -142,11 +146,12 @@ impl<Ctx: Sized, R: SArg> Arg<Ctx, R> {
     fn parse(name: &'static str, tkns: &mut ArgMap) -> R::R {
         <R as SArg>::parse(name, tkns)
     }
-    fn desc(&self, c: &Ctx) -> String {
-        match self.desc {
+    fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)> {
+        let d = match self.desc {
             Desc::Static(s) => s.to_owned(),
             Desc::Dyn(ref d) => d(c).to_owned(),
-        }
+        };
+        vec![(name.to_string(), d)]
     }
 }
 impl<Ctx: Sized, R: SArg> SArg for Arg<Ctx, R> {
@@ -158,15 +163,16 @@ impl<Ctx: Sized, R: SArg> SArg for Arg<Ctx, R> {
 }
 
 trait DArg<Ctx: Sized> {
-    fn desc(&self, c: &Ctx) -> String;
+    fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)>;
 }
 
 impl<Ctx: Sized, S: SArg> DArg<Ctx> for Arg<Ctx, S> {
-    fn desc(&self, c: &Ctx) -> String {
-        match self.desc {
+    fn desc(&self, name: &'static str, c: &Ctx) -> Vec<(String, String)> {
+        let d = match self.desc {
             Desc::Static(ref a) => a.to_string(),
             Desc::Dyn(ref f) => f(c),
-        }
+        };
+        vec![(name.to_string(), d)]
     }
 }
 
