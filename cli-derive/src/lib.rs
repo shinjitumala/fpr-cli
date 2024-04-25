@@ -64,3 +64,47 @@ pub fn args(i: TokenStream) -> TokenStream {
     };
     o.into()
 }
+
+#[proc_macro_derive(Acts, attributes(ctx))]
+pub fn argmap(i: TokenStream) -> TokenStream {
+    let pi = parse_macro_input!(i as DeriveInput);
+    let fields = match &pi.data {
+        Data::Struct(DataStruct {
+            fields: Fields::Named(fields),
+            ..
+        }) => &fields.named,
+        _ => panic!("Struct fields must be named."),
+    };
+
+    let ident = &pi.ident;
+    let field_names = fields.iter().map(|f| &f.ident);
+    let field_names2 = field_names.clone();
+    let field_names3 = field_names.clone();
+    let field_types = fields.iter().map(|f| &f.ty);
+
+    let result_ty_name = format!("Result{}", ident);
+    let result_ty = Ident::new(&result_ty_name, ident.span());
+    let result_ty2 = result_ty.clone();
+
+    let f = || -> Ident {
+        for attr in &pi.attrs {
+            if attr.path().is_ident("ctx") {
+                let r: Ident = attr.parse_args().unwrap();
+                return r;
+            }
+        }
+        panic!("Attribute 'ctx' is missing.")
+    };
+    let ctx = f();
+
+    let o = quote! {
+        impl ActPath<#ctx> for #ident{
+            fn nested(&self) -> Vec<(&'static str, Act<#ctx>)> {
+                vec![#(
+                    (stringify!(#field_names), self.#field_names.to_owned()),
+                )*]
+            }
+        }
+    };
+    o.into()
+}
