@@ -61,3 +61,7 @@ pub fn print_table(d: &Vec<(String, String)>) -> String {
 pub trait Acts<Ctx> {
     fn parse(c: &Ctx, args: &Tkns);
 }
+
+pub fn parse<Ctx, A: Acts<Ctx>>(c: &Ctx, args: &Tkns) {
+    A::parse(c, args)
+}

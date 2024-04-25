@@ -1,16 +1,12 @@
-use darling::{ast, util, FromDeriveInput, FromField};
+use darling::{ast, FromDeriveInput, FromField};
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{
-    parse::Parse, parse_macro_input, parse_quote, Data, DataStruct, DeriveInput, Expr, Fields,
-    Ident, LitStr, Stmt, Type,
-};
+use syn::{parse_macro_input, DeriveInput, Expr, Ident, LitStr, Path, Type};
 
 #[derive(Debug, FromField)]
 #[darling(attributes(arg))]
 struct Arg {
     desc: Option<Expr>,
-    act: Option<Expr>,
     i: Option<Expr>,
     ident: Option<Ident>,
     ty: Type,
@@ -19,7 +15,7 @@ struct Arg {
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(args), supports(struct_named))]
 struct Args {
-    ctx: syn::Path,
+    ctx: Path,
     ident: Ident,
     data: ast::Data<(), Arg>,
 }
@@ -44,31 +40,20 @@ pub fn args(i: TokenStream) -> TokenStream {
         .map(|a| {
             let ident = a.ident.as_ref().unwrap();
             let ty = &a.ty;
-            if a.act.is_none() {
+            if a.desc.is_none() && a.i.is_none() {
                 return quote! {
                     #ident: #ty::default()
                 };
             };
 
-            let mut o = String::from("Arg::new(");
-
             let desc = a.desc.as_ref().unwrap();
             let i = a.i.as_ref().unwrap();
-            let act = a.act.as_ref().unwrap();
 
             quote! {
                 #ident: Arg::new((#desc).into(),(#i).into())
             }
         })
         .collect::<Vec<_>>();
-    // let attr_fields_descs = attr_fields
-    //     .iter()
-    //     .map(|f| f.desc.as_ref().unwrap())
-    //     .collect::<Vec<_>>();
-    // let attr_fields_acts = attr_fields
-    //     .iter()
-    //     .map(|f| f.act.as_ref().unwrap())
-    //     .collect::<Vec<_>>();
 
     let o = quote! {
         #[derive(Debug)]
@@ -98,7 +83,7 @@ pub fn args(i: TokenStream) -> TokenStream {
             }
         }
 
-        impl Default for #ident{
+        impl Default for #ident {
             fn default() -> Self {
                 Self {
                     #(
@@ -111,42 +96,56 @@ pub fn args(i: TokenStream) -> TokenStream {
     o.into()
 }
 
-#[proc_macro_derive(Acts, attributes(ctx, desc))]
+#[derive(Debug, FromField)]
+#[darling(attributes(act))]
+struct Act {
+    desc: Option<LitStr>,
+    act: Option<Expr>,
+    ident: Option<Ident>,
+    ty: Type,
+}
+
+#[derive(Debug, FromDeriveInput)]
+#[darling(attributes(acts), supports(struct_named))]
+struct Acts {
+    ident: Ident,
+    ctx: Path,
+    desc: LitStr,
+    data: ast::Data<(), Act>,
+}
+
+#[proc_macro_derive(Acts, attributes(acts, act))]
 pub fn argmap(i: TokenStream) -> TokenStream {
-    let pi = parse_macro_input!(i as DeriveInput);
-    let fields = match &pi.data {
-        Data::Struct(DataStruct {
-            fields: Fields::Named(fields),
-            ..
-        }) => &fields.named,
-        _ => panic!("Struct fields must be named."),
+    let p = match Acts::from_derive_input(&parse_macro_input!(i as DeriveInput)) {
+        Ok(p) => p,
+        Err(e) => return e.write_errors().into(),
     };
 
-    let ident = &pi.ident;
-    let field_names = fields.iter().map(|f| &f.ident);
-    let field_names2 = field_names.clone();
+    let ident = &p.ident;
+    let fields = p.data.as_ref().take_struct().expect("").fields;
+    let field_names = fields.iter().map(|f| &f.ident).collect::<Vec<_>>();
+    let ctx = &p.ctx;
+    let desc = &p.desc;
 
-    let f = || -> Ident {
-        for attr in &pi.attrs {
-            if attr.path().is_ident("ctx") {
-                let r: Ident = attr.parse_args().unwrap();
-                return r;
+    let attr_fields = fields
+        .iter()
+        .map(|a| {
+            let ident = a.ident.as_ref().unwrap();
+            let ty = &a.ty;
+            if a.desc.is_none() && a.act.is_none() {
+                return quote! {
+                    #ident: #ty::default()
+                };
+            };
+
+            let desc = a.desc.as_ref().unwrap();
+            let i = a.act.as_ref().unwrap();
+
+            quote! {
+                #ident: Act::new(#desc, #i)
             }
-        }
-        panic!("Attribute 'ctx' is missing.")
-    };
-    let ctx = f();
-
-    let f2 = || -> LitStr {
-        for attr in &pi.attrs {
-            if attr.path().is_ident("desc") {
-                let r: LitStr = attr.parse_args().unwrap();
-                return r;
-            }
-        }
-        panic!("Attribute 'desc' is missing.")
-    };
-    let desc = f2();
+        })
+        .collect::<Vec<_>>();
 
     let o = quote! {
         impl ActPath<#ctx> for #ident {
@@ -154,7 +153,7 @@ pub fn argmap(i: TokenStream) -> TokenStream {
                 let usage = (||{
                     let desc = vec![
                         #(
-                            (format!(stringify!(#field_names2)), format!("{}", self.#field_names2.desc())),
+                            (format!(stringify!(#field_names)), format!("{}", self.#field_names.desc())),
                         )*
                     ];
                     let v = print_table(&desc);
@@ -190,6 +189,16 @@ pub fn argmap(i: TokenStream) -> TokenStream {
                     Err(ref e) => {
                         println!("Parse error: {}", e);
                     },
+                }
+            }
+        }
+
+        impl Default for #ident {
+            fn default() -> Self {
+                Self {
+                    #(
+                        #attr_fields,
+                    )*
                 }
             }
         }

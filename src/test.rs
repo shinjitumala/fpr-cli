@@ -7,39 +7,32 @@ struct TestCtx {
     account_id: i32,
 }
 
+type V<V> = Arg<TestCtx, V>;
+
 #[derive(Args)]
 #[args(ctx = TestCtx)]
 struct Test2 {
-    // #[default(_code = "Arg::s(\"foo\")")]
-    #[arg(desc = (""), i = (""), act = (""))]
-    next: Arg<TestCtx, Opt<One<String>>>,
-}
-
-fn x() {
-    Arg::<TestCtx, Opt<One<String>>>::new("".into(), Init::Const("".into()));
+    #[arg(desc = (""), i = (""))]
+    next: V<Opt<One<String>>>,
 }
 
 #[derive(Args)]
-// #[ctx(TestCtx)]
 #[args(ctx = TestCtx)]
 struct Test {
-    // #[default(_code = "Arg::new(Desc::Dyn(|c| format!(\"FOO{}\",c.account_id)),Init::Const(1))")]
-    #[arg(desc = (""), i = 1, act = (""))]
-    name: Arg<TestCtx, Req<One<i32>>>,
-    // #[default(_code = "Arg::new(Desc::Const(\"foo\"),Init::None)")]
-    #[arg(desc = (""), i = Init::None, act = (""))]
-    id: Arg<TestCtx, Opt<One<A>>>,
-    // #[default(_code = "Arg::s(\"focwo\")")]
-    #[arg(desc = (""), i = Init::None, act = (""))]
-    ids: Arg<TestCtx, Opt<Vec<i32>>>,
+    #[arg(desc = (""), i = 1)]
+    name: V<Req<One<i32>>>,
+    #[arg(desc = (""), i = Init::None)]
+    id: V<Opt<One<B>>>,
+    #[arg(desc = (""), i = Init::None)]
+    ids: V<Opt<Vec<i32>>>,
     test: Test2,
 }
 
 #[derive(Debug, Clone)]
-struct A {
+struct B {
     _name: String,
 }
-impl Parse for A {
+impl Parse for B {
     fn parse(_name: &'static str, tkn: &String) -> ParseResult<Self> {
         Ok(Self {
             _name: tkn.to_owned(),
@@ -52,19 +45,19 @@ fn foox(c: &TestCtx, x: Ret<TestCtx, Test>) {
     println!("c: {:?}", c);
 }
 
-#[derive(Acts, SmartDefault)]
-#[ctx(TestCtx)]
-#[desc("foo")]
+type A<Args> = Act<TestCtx, Args>;
+
+#[derive(Acts)]
+#[acts(ctx = TestCtx, desc = "foo")]
 struct TestActMap2 {
-    #[default(_code = r#"Act::new("IAM LEGEND",foox)"#)]
-    act1: Act<TestCtx, Test>,
-    #[default(_code = r#"Act::new("2",|_,_|{println!("act2")})"#)]
-    act2: Act<TestCtx, Test>,
+    #[act(desc = "IAM LEGEND",act = foox)]
+    act1: A<Test>,
+    #[act(desc = "2",act = |_,_|{println!("act2")})]
+    act2: A<Test>,
 }
 
-#[derive(Acts, SmartDefault)]
-#[ctx(TestCtx)]
-#[desc("foo")]
+#[derive(Acts)]
+#[acts(ctx = TestCtx, desc="foo")]
 struct TestActMap {
     map1: TestActMap2,
 }
@@ -80,11 +73,11 @@ fn test() {
         format!("--id"),
         format!("10"),
         // format!("10a"),
-        // format!("-nyom"),
+        format!("--nyom"),
     ];
 
     let ctx: TestCtx = serde_json::from_reader(File::open("config.json").expect("Failed to open"))
         .expect("Failed to parse");
 
-    TestActMap::parse(&ctx, &args);
+    crate::cl::parse::<_, TestActMap>(&ctx, &args);
 }
