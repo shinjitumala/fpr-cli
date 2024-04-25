@@ -1,7 +1,10 @@
 use crate::cl2::*;
-use smart_default::SmartDefault;
+use serde::{Deserialize, Serialize};
 
-struct Ctx {}
+#[derive(Serialize, Deserialize)]
+struct Ctx {
+    account_id: i32,
+}
 
 #[derive(Args, SmartDefault)]
 #[ctx(Ctx)]
@@ -13,7 +16,7 @@ struct Test2 {
 #[derive(Args, SmartDefault)]
 #[ctx(Ctx)]
 struct Test {
-    #[default(_code = "Arg::new(Desc::Dyn(|_| format!(\"FOO\")),Init::Const(1))")]
+    #[default(_code = "Arg::new(Desc::Dyn(|c| format!(\"FOO{}\",c.account_id)),Init::Const(1))")]
     name: Arg<Ctx, Req<One<i32>>>,
     #[default(_code = "Arg::s(\"foo\")")]
     id: Arg<Ctx, Opt<One<A>>>,
@@ -24,29 +27,32 @@ struct Test {
 
 #[derive(Debug, Clone)]
 struct A {
-    name: String,
+    _name: String,
 }
 impl Parse for A {
     fn parse(_name: &'static str, tkn: &String) -> ParseResult<Self> {
         Ok(Self {
-            name: tkn.to_owned(),
+            _name: tkn.to_owned(),
         })
     }
 }
 
 #[test]
 fn test() {
+    use std::fs::File;
+
     let args = vec![
         // format!("-id"),
         // format!("foo"),
-        // format!("-help"),
+        format!("--help"),
         // format!("-name"),
         // format!("10"),
         // format!("10a"),
-        format!("-nyom"),
+        // format!("-nyom"),
     ];
 
-    let ctx = Ctx {};
+    let ctx: Ctx = serde_json::from_reader(File::open("config.json").expect("Failed to open"))
+        .expect("Failed to parse");
 
     let x = parse::<Ctx, Test>(&ctx, &args).expect("Parse failed");
     println!("{:?}", x);

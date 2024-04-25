@@ -1,7 +1,8 @@
-use regex::Regex;
-use std::{collections::HashMap, fmt::Debug, process, str::FromStr};
-use itertools::Itertools;
 pub use cli_derive::*;
+use itertools::Itertools;
+use regex::Regex;
+pub use smart_default::SmartDefault;
+use std::{collections::HashMap, fmt::Debug, process, str::FromStr};
 
 const PFX: &'static str = "--";
 #[derive(Debug)]
@@ -75,7 +76,7 @@ impl<T: FromStr + Clone + Debug> Parse for T {
 }
 
 pub struct One<T: Parse> {
-    v: T,
+    _v: T,
 }
 
 pub trait Parse2
