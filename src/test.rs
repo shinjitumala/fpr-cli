@@ -40,6 +40,7 @@ impl Parse for A {
 
 #[derive(Acts, SmartDefault)]
 #[ctx(TestCtx)]
+#[desc("foo")]
 struct TestActMap2 {
     #[default(_code = "Act::new(\"1\",|_,_|{println!(\"act1\")})")]
     act1: Act<TestCtx>,
@@ -49,6 +50,7 @@ struct TestActMap2 {
 
 #[derive(Acts, SmartDefault)]
 #[ctx(TestCtx)]
+#[desc("foo")]
 struct TestActMap {
     map1: TestActMap2,
 }
@@ -58,8 +60,8 @@ fn test() {
     use std::fs::File;
 
     let args = vec![
-        format!("map1"),
-        format!("act1"),
+        format!("map2"),
+        // format!("act3"),
         // format!("--help"),
         // format!("-name"),
         // format!("10"),

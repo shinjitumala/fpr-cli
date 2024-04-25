@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, Ident};
+use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, Ident, LitStr};
 
 #[proc_macro_derive(Args, attributes(ctx))]
 pub fn args(i: TokenStream) -> TokenStream {
@@ -65,7 +65,7 @@ pub fn args(i: TokenStream) -> TokenStream {
     o.into()
 }
 
-#[proc_macro_derive(Acts, attributes(ctx))]
+#[proc_macro_derive(Acts, attributes(ctx, desc))]
 pub fn argmap(i: TokenStream) -> TokenStream {
     let pi = parse_macro_input!(i as DeriveInput);
     let fields = match &pi.data {
@@ -97,11 +97,22 @@ pub fn argmap(i: TokenStream) -> TokenStream {
     };
     let ctx = f();
 
+    let f2 = || -> LitStr {
+        for attr in &pi.attrs {
+            if attr.path().is_ident("desc") {
+                let r: LitStr = attr.parse_args().unwrap();
+                return r;
+            }
+        }
+        panic!("Attribute 'desc' is missing.")
+    };
+    let desc = f2();
+
     let o = quote! {
         impl ActPath<#ctx> for #ident {
             fn next(&self, c: &#ctx, pfx: String, rest: Vec<String>) -> Result<(), String>{
                 if(rest.len() == 0){
-                    return Err(format!("Expected an action in '{}'", pfx))
+                    return Err(format!("Expected an action in '{}'\n{}", pfx, self.next_desc()))
                 }
                 let next_rest = rest.clone().drain(1..).collect::<Vec<_>>();
                 let next = rest[0].to_owned();
@@ -113,8 +124,20 @@ pub fn argmap(i: TokenStream) -> TokenStream {
                     #(
                         stringify!(#field_names) => self.#field_names.next(c, next_pfx, next_rest),
                     )*
-                    _ => Err(format!("'{}' is not an action in '{}'", next, pfx)),
+                    _ => Err(format!("'{}' is not an action in '{}'\n{}", next, pfx, self.next_desc())),
                 }
+            }
+            fn desc(&self) -> &'static str {
+                #desc
+            }
+            fn next_desc(&self)->String{
+                let desc = vec![
+                    #(
+                        (format!(stringify!(#field_names2)), format!("{}", self.#field_names2.desc())),
+                    )*
+                ];
+                let v = print_table(&desc);
+                format!("Available actions:\n{}", v)
             }
         }
 
@@ -124,7 +147,9 @@ pub fn argmap(i: TokenStream) -> TokenStream {
                 let r = ActPath::<#ctx>::next(&d, c, format!(""), args.to_owned());
                 match r {
                     Ok(_) => (),
-                    Err(ref e) => panic!("Error: {}", e),
+                    Err(ref e) => {
+                        println!("Parse error: {}", e);
+                    },
                 }
             }
         }
