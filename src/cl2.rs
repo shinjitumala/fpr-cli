@@ -12,11 +12,13 @@ pub struct Tkns {
 }
 
 impl Tkns {
-    fn consume(&mut self, name: &'static str) {
+    fn consume(&mut self, name: &'static str) -> ParseResult<()> {
         if self.consumed {
-            panic!("Multiple consumers for '{}' (To developer)", name)
+            Err(format!("Multiple consumers for '{}' (To developer)", name))
+        } else {
+            self.consumed = true;
+            Ok(())
         }
-        self.consumed = true;
     }
 }
 
@@ -26,7 +28,7 @@ fn add_prefix(name: &String) -> String {
     format!("{}{}", PFX, name)
 }
 
-fn to_argmap(args: &[String]) -> ArgMap {
+fn to_argmap(args: &[String]) -> ParseResult<ArgMap> {
     let remove_prefix = Regex::new(&format!("^{}", PFX)).unwrap();
 
     let mut res = ArgMap::new();
@@ -39,6 +41,10 @@ fn to_argmap(args: &[String]) -> ArgMap {
         .collect();
     idx_arg_names.push(args.len());
 
+    if !args.is_empty() && idx_arg_names[0] != 0 {
+        return Err(format!("Expected argument start {}", args[0]));
+    }
+
     for (i, next) in idx_arg_names.iter().tuple_windows() {
         let x = &args[*i];
 
@@ -50,11 +56,11 @@ fn to_argmap(args: &[String]) -> ArgMap {
             },
         );
         match r {
-            Some(_) => panic!("Duplicate argument: {}", x),
+            Some(_) => return Err(format!("Duplicate argument: {}", x)),
             None => (),
         }
     }
-    res
+    Ok(res)
 }
 
 pub type ParseResult<T> = Result<T, String>;
@@ -91,7 +97,7 @@ where
 
 impl<T: Parse> Parse2 for One<T> {
     type R = T;
-    fn parse(name: &'static str, tkns: &[String]) -> Result<Self::R, String> {
+    fn parse(name: &'static str, tkns: &[String]) -> ParseResult<Self::R> {
         if tkns.len() == 1 {
             Ok(T::parse(name, &tkns[0])?)
         } else {
@@ -106,7 +112,7 @@ impl<T: Parse> Parse2 for One<T> {
 
 impl<T: Parse> Parse2 for Vec<T> {
     type R = Vec<T>;
-    fn parse(name: &'static str, tkns: &[String]) -> Result<Self::R, String> {
+    fn parse(name: &'static str, tkns: &[String]) -> ParseResult<Self::R> {
         if tkns.len() == 0 {
             Err(format!("Expected at least one value for '{}'", name))
         } else {
@@ -167,7 +173,7 @@ impl<Ctx, T: Parse2> Parse3<Ctx> for Req<T> {
     ) -> ParseResult<Self::R> {
         match am.get_mut(name) {
             Some(v) => {
-                v.consume(name);
+                v.consume(name)?;
                 T::parse(name, &v.tkns)
             }
             None => match get_init(c, init) {
@@ -192,7 +198,7 @@ impl<Ctx, T: Parse2> Parse3<Ctx> for Opt<T> {
     ) -> ParseResult<Self::R> {
         match am.get_mut(name) {
             Some(v) => {
-                v.consume(name);
+                v.consume(name)?;
                 Ok(Some(T::parse(name, &v.tkns)?))
             }
             None => match get_init(c, init) {
@@ -304,7 +310,7 @@ pub fn parse<Ctx, A: Args<Ctx> + Default>(
     ctx: &Ctx,
     args: &[String],
 ) -> ParseResult<<A as Args<Ctx>>::R> {
-    let mut am = to_argmap(&args);
+    let mut am = to_argmap(&args)?;
     let a = A::default();
 
     match am.get("help") {
@@ -324,10 +330,10 @@ pub fn parse<Ctx, A: Args<Ctx> + Default>(
         .collect();
 
     if !errs.is_empty() {
-        panic!("Parse error:\n{}", errs.join("\n"))
+        Err(errs.join("\n"))
+    } else {
+        r
     }
-
-    r
 }
 
 pub type Ret<Ctx, A> = <A as Args<Ctx>>::R;

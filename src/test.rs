@@ -12,6 +12,8 @@ struct TestCtx {
 struct Test2 {
     #[default(_code = "Arg::s(\"foo\")")]
     next: Arg<TestCtx, Opt<One<String>>>,
+    #[default(_code = "Arg::new(Desc::Const(\"foo\"),Init::None)")]
+    id: Arg<TestCtx, Opt<One<String>>>,
 }
 
 #[derive(Args, SmartDefault)]
@@ -19,7 +21,7 @@ struct Test2 {
 struct Test {
     #[default(_code = "Arg::new(Desc::Dyn(|c| format!(\"FOO{}\",c.account_id)),Init::Const(1))")]
     name: Arg<TestCtx, Req<One<i32>>>,
-    #[default(_code = "Arg::s(\"foo\")")]
+    #[default(_code = "Arg::new(Desc::Const(\"foo\"),Init::None)")]
     id: Arg<TestCtx, Opt<One<A>>>,
     #[default(_code = "Arg::s(\"focwo\")")]
     ids: Arg<TestCtx, Opt<Vec<i32>>>,
@@ -67,10 +69,10 @@ fn test() {
     let args = vec![
         format!("map1"),
         format!("act1"),
-        format!("--help"),
-        // format!("-name"),
-        // format!("10"),
-        // format!("10a"),
+        // format!("--help"),
+        // format!("--id"),
+        format!("10"),
+        format!("10a"),
         // format!("-nyom"),
     ];
 

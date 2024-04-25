@@ -105,8 +105,17 @@ pub fn argmap(i: TokenStream) -> TokenStream {
     let o = quote! {
         impl ActPath<#ctx> for #ident {
             fn next(&self, c: &#ctx, pfx: String, rest: Vec<String>) -> Result<(), String>{
+                let usage = (||{
+                    let desc = vec![
+                        #(
+                            (format!(stringify!(#field_names2)), format!("{}", self.#field_names2.desc())),
+                        )*
+                    ];
+                    let v = print_table(&desc);
+                    format!("Available actions:\n{}", v)
+                })();
                 if(rest.len() == 0){
-                    return Err(format!("Expected an action in '{}'\n{}", pfx, self.next_desc()))
+                    return Err(format!("Expected an action in '{}'\n{}", pfx, &usage))
                 }
                 let next_rest = rest.clone().drain(1..).collect::<Vec<_>>();
                 let next = rest[0].to_owned();
@@ -118,20 +127,11 @@ pub fn argmap(i: TokenStream) -> TokenStream {
                     #(
                         stringify!(#field_names) => self.#field_names.next(c, next_pfx, next_rest),
                     )*
-                    _ => Err(format!("'{}' is not an action in '{}'\n{}", next, pfx, self.next_desc())),
+                    _ => Err(format!("'{}' is not an action in '{}'\n{}", next, pfx, &usage)),
                 }
             }
             fn desc(&self) -> &'static str {
                 #desc
-            }
-            fn next_desc(&self)->String{
-                let desc = vec![
-                    #(
-                        (format!(stringify!(#field_names2)), format!("{}", self.#field_names2.desc())),
-                    )*
-                ];
-                let v = print_table(&desc);
-                format!("Available actions:\n{}", v)
             }
         }
 

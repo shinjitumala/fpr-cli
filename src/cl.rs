@@ -30,7 +30,6 @@ impl<Ctx, A: cl2::Args<Ctx> + Default> Act<Ctx, A> {
 pub trait ActPath<Ctx> {
     fn next(&self, c: &Ctx, pfx: String, rest: Vec<String>) -> Result<(), String>;
     fn desc(&self) -> &'static str;
-    fn next_desc(&self) -> String;
 }
 
 impl<Ctx, A: cl2::Args<Ctx> + Default> ActPath<Ctx> for Act<Ctx, A> {
@@ -40,9 +39,6 @@ impl<Ctx, A: cl2::Args<Ctx> + Default> ActPath<Ctx> for Act<Ctx, A> {
     }
     fn desc(&self) -> &'static str {
         self.desc
-    }
-    fn next_desc(&self) -> String {
-        panic!()
     }
 }
 
