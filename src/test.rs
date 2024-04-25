@@ -1,12 +1,9 @@
-use super::*;
-
-struct Ctx {}
+use crate::cl2::*;
 use smart_default::SmartDefault;
 
-// type Req<T: Parse> = Arg<Ctx, super::Req<One<T>>>;
+struct Ctx {}
 
 #[derive(Args, SmartDefault)]
-// #[derive(Args)]
 #[ctx(Ctx)]
 struct Test2 {
     #[default(_code = "Arg::s(\"foo\")")]
@@ -14,11 +11,9 @@ struct Test2 {
 }
 
 #[derive(Args, SmartDefault)]
-// #[derive(Args)]
 #[ctx(Ctx)]
 struct Test {
-    // #[default(_code = "Arg::d(|c| format!(\"FOO\"))")]
-    #[default(_code = "Arg::new(Desc::Dyn(|c| format!(\"FOO\")),Init::Const(1))")]
+    #[default(_code = "Arg::new(Desc::Dyn(|_| format!(\"FOO\")),Init::Const(1))")]
     name: Arg<Ctx, Req<One<i32>>>,
     #[default(_code = "Arg::s(\"foo\")")]
     id: Arg<Ctx, Opt<One<A>>>,
@@ -42,15 +37,17 @@ impl Parse for A {
 #[test]
 fn test() {
     let args = vec![
-        format!("-id"),
-        format!("foo"),
+        // format!("-id"),
+        // format!("foo"),
         // format!("-help"),
         // format!("-name"),
         // format!("10"),
+        // format!("10a"),
+        format!("-nyom"),
     ];
 
     let ctx = Ctx {};
 
-    let x = parse::<Ctx, Test>(&ctx, &args).expect("Parse failed.");
+    let x = parse::<Ctx, Test>(&ctx, &args).expect("Parse failed");
     println!("{:?}", x);
 }
