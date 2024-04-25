@@ -38,14 +38,18 @@ impl Parse for A {
     }
 }
 
+fn foox(c: &TestCtx, x: Ret<TestCtx, Test>) {
+    println!("{:?}", x)
+}
+
 #[derive(Acts, SmartDefault)]
 #[ctx(TestCtx)]
 #[desc("foo")]
 struct TestActMap2 {
-    #[default(_code = "Act::new(\"1\",|_,_|{println!(\"act1\")})")]
-    act1: Act<TestCtx>,
-    #[default(_code = "Act::new(\"2\",|_,_|{println!(\"act2\")})")]
-    act2: Act<TestCtx>,
+    #[default(_code = r#"Act::new("IAM LEGEND",foox)"#)]
+    act1: Act<TestCtx, Test>,
+    #[default(_code = r#"Act::new("2",|_,_|{println!("act2")})"#)]
+    act2: Act<TestCtx, Test>,
 }
 
 #[derive(Acts, SmartDefault)]
@@ -60,8 +64,8 @@ fn test() {
     use std::fs::File;
 
     let args = vec![
-        format!("map2"),
-        // format!("act3"),
+        format!("map1"),
+        format!("act1"),
         // format!("--help"),
         // format!("-name"),
         // format!("10"),

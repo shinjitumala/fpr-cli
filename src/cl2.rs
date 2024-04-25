@@ -211,7 +211,7 @@ trait ArgT<Ctx, T: Parse3<Ctx>> {
     fn parse(&self, c: &Ctx, name: &'static str, am: &mut ArgMap) -> ParseResult<T::R>;
 }
 
-pub enum Desc<Ctx: Sized> {
+pub enum Desc<Ctx> {
     Const(&'static str),
     Dyn(fn(&Ctx) -> String),
 }
@@ -300,7 +300,7 @@ fn print_table(d: &Vec<(String, String)>) -> String {
         .join("\n")
 }
 
-pub fn parse<Ctx: Sized, A: Args<Ctx> + Default>(
+pub fn parse<Ctx, A: Args<Ctx> + Default>(
     ctx: &Ctx,
     args: &[String],
 ) -> ParseResult<<A as Args<Ctx>>::R> {
@@ -329,3 +329,5 @@ pub fn parse<Ctx: Sized, A: Args<Ctx> + Default>(
 
     r
 }
+
+pub type Ret<Ctx, A> = <A as Args<Ctx>>::R;

@@ -1,17 +1,18 @@
+use crate::cl2;
 pub use cli_derive::*;
 use itertools::Itertools;
 pub use smart_default::SmartDefault;
 
 type Tkns = Vec<String>;
 
-pub struct Act<Ctx> {
+pub struct Act<Ctx, A: cl2::Args<Ctx>> {
     desc: &'static str,
-    act: fn(&Ctx, &Tkns),
+    act: fn(&Ctx, A::R),
 }
 
 // It's a bug?
 // [rust - How to clone a function pointer - Stack Overflow](https://stackoverflow.com/questions/33454425/how-to-clone-a-function-pointer)
-impl<Ctx> Clone for Act<Ctx> {
+impl<Ctx, A: cl2::Args<Ctx> + Default> Clone for Act<Ctx, A> {
     fn clone(&self) -> Self {
         Act {
             desc: self.desc,
@@ -20,8 +21,8 @@ impl<Ctx> Clone for Act<Ctx> {
     }
 }
 
-impl<Ctx> Act<Ctx> {
-    pub fn new(desc: &'static str, act: fn(&Ctx, &Tkns)) -> Self {
+impl<Ctx, A: cl2::Args<Ctx> + Default> Act<Ctx, A> {
+    pub fn new(desc: &'static str, act: fn(&Ctx, A::R)) -> Self {
         Self { desc, act }
     }
 }
@@ -32,9 +33,10 @@ pub trait ActPath<Ctx> {
     fn next_desc(&self) -> String;
 }
 
-impl<Ctx> ActPath<Ctx> for Act<Ctx> {
+impl<Ctx, A: cl2::Args<Ctx> + Default> ActPath<Ctx> for Act<Ctx, A> {
     fn next(&self, c: &Ctx, _: String, rest: Vec<String>) -> Result<(), String> {
-        Ok((self.act)(c, &rest))
+        let a = cl2::parse::<Ctx, A>(c, &rest)?;
+        Ok((self.act)(c, a))
     }
     fn desc(&self) -> &'static str {
         self.desc
