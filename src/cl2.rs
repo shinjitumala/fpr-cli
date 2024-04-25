@@ -138,6 +138,24 @@ pub enum Init<Ctx, T: Parse2> {
     Dyn(fn(&Ctx) -> T::R),
 }
 
+impl<Ctx> From<&'static str> for Init<Ctx, One<String>> {
+    fn from(value: &'static str) -> Self {
+        Init::Const(value.to_string())
+    }
+}
+
+impl<Ctx> From<i32> for Init<Ctx, One<i32>> {
+    fn from(value: i32) -> Self {
+        Init::Const(value)
+    }
+}
+
+impl<Ctx, T: Parse2> From<fn(&Ctx) -> T::R> for Init<Ctx, T> {
+    fn from(value: fn(&Ctx) -> T::R) -> Self {
+        Init::Dyn(value)
+    }
+}
+
 fn get_init<Ctx, T: Parse2>(c: &Ctx, init: &Init<Ctx, T>) -> Option<T::R> {
     match init {
         Init::None => None,
@@ -220,6 +238,18 @@ trait ArgT<Ctx, T: Parse3<Ctx>> {
 pub enum Desc<Ctx> {
     Const(&'static str),
     Dyn(fn(&Ctx) -> String),
+}
+
+impl<Ctx> From<&'static str> for Desc<Ctx> {
+    fn from(value: &'static str) -> Self {
+        Desc::Const(value)
+    }
+}
+
+impl<Ctx> From<fn(&Ctx) -> String> for Desc<Ctx> {
+    fn from(value: fn(&Ctx) -> String) -> Self {
+        Desc::Dyn(value)
+    }
 }
 
 pub struct Arg<Ctx, T: Parse3<Ctx>>

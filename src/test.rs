@@ -7,23 +7,30 @@ struct TestCtx {
     account_id: i32,
 }
 
-#[derive(Args, SmartDefault)]
-#[ctx(TestCtx)]
+#[derive(Args)]
+#[args(ctx = TestCtx)]
 struct Test2 {
-    #[default(_code = "Arg::s(\"foo\")")]
+    // #[default(_code = "Arg::s(\"foo\")")]
+    #[arg(desc = (""), i = (""), act = (""))]
     next: Arg<TestCtx, Opt<One<String>>>,
-    #[default(_code = "Arg::new(Desc::Const(\"foo\"),Init::None)")]
-    id: Arg<TestCtx, Opt<One<String>>>,
 }
 
-#[derive(Args, SmartDefault)]
-#[ctx(TestCtx)]
+fn x() {
+    Arg::<TestCtx, Opt<One<String>>>::new("".into(), Init::Const("".into()));
+}
+
+#[derive(Args)]
+// #[ctx(TestCtx)]
+#[args(ctx = TestCtx)]
 struct Test {
-    #[default(_code = "Arg::new(Desc::Dyn(|c| format!(\"FOO{}\",c.account_id)),Init::Const(1))")]
+    // #[default(_code = "Arg::new(Desc::Dyn(|c| format!(\"FOO{}\",c.account_id)),Init::Const(1))")]
+    #[arg(desc = (""), i = 1, act = (""))]
     name: Arg<TestCtx, Req<One<i32>>>,
-    #[default(_code = "Arg::new(Desc::Const(\"foo\"),Init::None)")]
+    // #[default(_code = "Arg::new(Desc::Const(\"foo\"),Init::None)")]
+    #[arg(desc = (""), i = Init::None, act = (""))]
     id: Arg<TestCtx, Opt<One<A>>>,
-    #[default(_code = "Arg::s(\"focwo\")")]
+    // #[default(_code = "Arg::s(\"focwo\")")]
+    #[arg(desc = (""), i = Init::None, act = (""))]
     ids: Arg<TestCtx, Opt<Vec<i32>>>,
     test: Test2,
 }
@@ -70,9 +77,9 @@ fn test() {
         format!("map1"),
         format!("act1"),
         // format!("--help"),
-        // format!("--id"),
+        format!("--id"),
         format!("10"),
-        format!("10a"),
+        // format!("10a"),
         // format!("-nyom"),
     ];
 

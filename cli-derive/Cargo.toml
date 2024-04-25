@@ -9,5 +9,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+darling = "0.20.8"
 quote = "1.0.35"
 syn = "2.0.57"
