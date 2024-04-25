@@ -79,12 +79,6 @@ pub fn argmap(i: TokenStream) -> TokenStream {
     let ident = &pi.ident;
     let field_names = fields.iter().map(|f| &f.ident);
     let field_names2 = field_names.clone();
-    let field_names3 = field_names.clone();
-    let field_types = fields.iter().map(|f| &f.ty);
-
-    let result_ty_name = format!("Result{}", ident);
-    let result_ty = Ident::new(&result_ty_name, ident.span());
-    let result_ty2 = result_ty.clone();
 
     let f = || -> Ident {
         for attr in &pi.attrs {

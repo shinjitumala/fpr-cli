@@ -2,7 +2,7 @@ use crate::cl::*;
 use crate::cl2::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct TestCtx {
     account_id: i32,
 }
@@ -39,7 +39,8 @@ impl Parse for A {
 }
 
 fn foox(c: &TestCtx, x: Ret<TestCtx, Test>) {
-    println!("{:?}", x)
+    println!("x: {:?}", x);
+    println!("c: {:?}", c);
 }
 
 #[derive(Acts, SmartDefault)]
@@ -66,7 +67,7 @@ fn test() {
     let args = vec![
         format!("map1"),
         format!("act1"),
-        // format!("--help"),
+        format!("--help"),
         // format!("-name"),
         // format!("10"),
         // format!("10a"),
@@ -77,7 +78,4 @@ fn test() {
         .expect("Failed to parse");
 
     TestActMap::parse(&ctx, &args);
-
-    // let x = parse::<Ctx, Test>(&ctx, &args).expect("Parse failed");
-    // println!("{:?}", x);
 }
