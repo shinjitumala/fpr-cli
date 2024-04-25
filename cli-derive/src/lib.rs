@@ -98,11 +98,34 @@ pub fn argmap(i: TokenStream) -> TokenStream {
     let ctx = f();
 
     let o = quote! {
-        impl ActPath<#ctx> for #ident{
-            fn nested(&self) -> Vec<(&'static str, Act<#ctx>)> {
-                vec![#(
-                    (stringify!(#field_names), self.#field_names.to_owned()),
-                )*]
+        impl ActPath<#ctx> for #ident {
+            fn next(&self, c: &#ctx, pfx: String, rest: Vec<String>) -> Result<(), String>{
+                if(rest.len() == 0){
+                    return Err(format!("Expected an action in '{}'", pfx))
+                }
+                let next_rest = rest.clone().drain(1..).collect::<Vec<_>>();
+                let next = rest[0].to_owned();
+                let next_pfx = match pfx.as_str(){
+                    "" => next.to_owned(),
+                    _ => format!("{} {}", pfx, next),
+                };
+                match next.as_str() {
+                    #(
+                        stringify!(#field_names) => self.#field_names.next(c, next_pfx, next_rest),
+                    )*
+                    _ => Err(format!("'{}' is not an action in '{}'", next, pfx)),
+                }
+            }
+        }
+
+        impl Acts<#ctx> for #ident where Self: ActPath<#ctx> {
+            fn parse(c: &#ctx, args: &Vec<String>){
+                let d = Self::default();
+                let r = ActPath::<#ctx>::next(&d, c, format!(""), args.to_owned());
+                match r {
+                    Ok(_) => (),
+                    Err(ref e) => panic!("Error: {}", e),
+                }
             }
         }
     };
