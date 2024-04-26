@@ -193,6 +193,9 @@ dependencies = [
 [[package]]
 name = "sh_gen"
 version = "0.1.0"
+dependencies = [
+ "cli",
+]
 
 [[package]]
 name = "smart-default"

@@ -2,7 +2,7 @@ pub use cli_derive::*;
 use itertools::Itertools;
 use regex::Regex;
 pub use smart_default::SmartDefault;
-use std::{collections::HashMap, fmt::Debug, process, str::FromStr};
+use std::{collections::HashMap, fmt::Debug, path::PathBuf, process, str::FromStr};
 
 const PFX: &'static str = "--";
 #[derive(Debug)]
@@ -76,6 +76,26 @@ impl<T: FromStr + Clone + Debug> Parse for T {
     fn parse(name: &'static str, tkn: &String) -> ParseResult<Self> {
         match Self::from_str(tkn) {
             Ok(v) => Ok(v),
+            Err(_) => Err(format!("Failed to parse '{}': {}", name, tkn)),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PathExist {
+    pub p: PathBuf,
+}
+
+impl Parse for PathExist {
+    fn parse(name: &'static str, tkn: &String) -> ParseResult<Self> {
+        match PathBuf::from_str(tkn) {
+            Ok(v) => {
+                if v.exists() {
+                    Ok(PathExist { p: v })
+                } else {
+                    Err(format!("Path does not exist: {:?}", v))
+                }
+            }
             Err(_) => Err(format!("Failed to parse '{}': {}", name, tkn)),
         }
     }
@@ -345,7 +365,7 @@ pub fn parse<Ctx, A: Args<Ctx> + Default>(
 
     match am.get("help") {
         Some(_) => {
-            println!("Usage:\n{}", print_table(&a.desc("", ctx)));
+            println!("Usage:\n{}", desc::<Ctx, A>(ctx));
             process::exit(0);
         }
         None => (),
@@ -364,6 +384,13 @@ pub fn parse<Ctx, A: Args<Ctx> + Default>(
     } else {
         r
     }
+}
+
+pub fn desc<Ctx, A: Args<Ctx> + Default>(c: &Ctx) -> String {
+    let a = A::default();
+    let mut v = a.desc("", c);
+    v.push((format!("help"), format!("Show this.")));
+    print_table(&v)
 }
 
 pub type Ret<Ctx, A> = <A as Args<Ctx>>::R;
