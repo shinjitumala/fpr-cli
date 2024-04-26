@@ -10,6 +10,8 @@ pub struct Act<Ctx, A: cl2::Args<Ctx>> {
     act: fn(&Ctx, A::R),
 }
 
+pub const LIST_SEP: &'static str = "_";
+
 // It's a bug?
 // [rust - How to clone a function pointer - Stack Overflow](https://stackoverflow.com/questions/33454425/how-to-clone-a-function-pointer)
 impl<Ctx, A: cl2::Args<Ctx> + Default> Clone for Act<Ctx, A> {
@@ -30,6 +32,7 @@ impl<Ctx, A: cl2::Args<Ctx> + Default> Act<Ctx, A> {
 pub trait ActPath<Ctx> {
     fn next(&self, c: &Ctx, pfx: String, rest: Vec<String>) -> Result<(), String>;
     fn desc(&self) -> &'static str;
+    fn list(pfx: Option<String>, name: &'static str) -> Vec<String>;
 }
 
 impl<Ctx, A: cl2::Args<Ctx> + Default> ActPath<Ctx> for Act<Ctx, A> {
@@ -39,6 +42,12 @@ impl<Ctx, A: cl2::Args<Ctx> + Default> ActPath<Ctx> for Act<Ctx, A> {
     }
     fn desc(&self) -> &'static str {
         self.desc
+    }
+    fn list(pfx: Option<String>, name: &'static str) -> Vec<String> {
+        match pfx {
+            Some(pfx) => vec![format!("{}{}{}", pfx, LIST_SEP, name)],
+            None => vec![format!("{}", name)],
+        }
     }
 }
 
@@ -60,8 +69,12 @@ pub fn print_table(d: &Vec<(String, String)>) -> String {
 
 pub trait Acts<Ctx> {
     fn parse(c: &Ctx, args: &Tkns);
+    fn list() -> Vec<String>;
 }
 
 pub fn parse<Ctx, A: Acts<Ctx>>(c: &Ctx, args: &Tkns) {
     A::parse(c, args)
+}
+pub fn list<Ctx, A: Acts<Ctx>>() -> Vec<String> {
+    A::list()
 }

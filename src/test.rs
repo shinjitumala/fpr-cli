@@ -49,11 +49,21 @@ type A<Args> = Act<TestCtx, Args>;
 
 #[derive(Acts)]
 #[acts(ctx = TestCtx, desc = "foo")]
+struct TestActMap3 {
+    #[act(desc = "IAM LEGEND",act = foox)]
+    act9: A<Test>,
+    #[act(desc = "2",act = |_,_|{println!("act2")})]
+    act10: A<Test>,
+}
+
+#[derive(Acts)]
+#[acts(ctx = TestCtx, desc = "foo")]
 struct TestActMap2 {
     #[act(desc = "IAM LEGEND",act = foox)]
     act1: A<Test>,
     #[act(desc = "2",act = |_,_|{println!("act2")})]
     act2: A<Test>,
+    act3: TestActMap3,
 }
 
 #[derive(Acts)]
@@ -80,4 +90,6 @@ fn test() {
         .expect("Failed to parse");
 
     crate::cl::parse::<_, TestActMap>(&ctx, &args);
+    let y = crate::cl::list::<_, TestActMap>();
+    println!("{:?}", y);
 }

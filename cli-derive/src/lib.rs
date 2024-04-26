@@ -124,6 +124,7 @@ pub fn argmap(i: TokenStream) -> TokenStream {
     let ident = &p.ident;
     let fields = p.data.as_ref().take_struct().expect("").fields;
     let field_names = fields.iter().map(|f| &f.ident).collect::<Vec<_>>();
+    let field_types = fields.iter().map(|f| &f.ty).collect::<Vec<_>>();
     let ctx = &p.ctx;
     let desc = &p.desc;
 
@@ -178,6 +179,21 @@ pub fn argmap(i: TokenStream) -> TokenStream {
             fn desc(&self) -> &'static str {
                 #desc
             }
+            fn list(pfx: Option<String>, name: &'static str) -> Vec<String> {
+                let mut r = Vec::<String>::new();
+                let next_pfx = match pfx {
+                    Some(pfx) => Some(format!("{}{}{}", pfx, LIST_SEP, name)),
+                    None => if name.len() == 0 {
+                        Option::None
+                    }else{
+                        Option::Some(format!("{}", name))
+                    },
+                };
+                #(
+                    r.extend(<#field_types as ActPath<#ctx>>::list(next_pfx.to_owned(), stringify!(#field_names)));
+                )*
+                r
+            }
         }
 
         impl Acts<#ctx> for #ident where Self: ActPath<#ctx> {
@@ -190,6 +206,9 @@ pub fn argmap(i: TokenStream) -> TokenStream {
                         println!("Parse error: {}", e);
                     },
                 }
+            }
+            fn list() -> Vec<String> {
+                <Self as ActPath<#ctx>>::list(Option::None, "")
             }
         }
 
