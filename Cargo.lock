@@ -191,6 +191,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "sh_gen"
+version = "0.1.0"
+
+[[package]]
 name = "smart-default"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

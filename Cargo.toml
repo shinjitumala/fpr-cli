@@ -1,4 +1,4 @@
-workspace = { members = ["cli-derive"] }
+workspace = { members = ["cli-derive", "sh_gen"] }
 [package]
 name = "cli"
 version = "0.1.0"
