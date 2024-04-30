@@ -356,7 +356,7 @@ fn print_table(d: &Vec<(String, String)>) -> String {
         .join("\n")
 }
 
-pub fn parse<Ctx, A: Args<Ctx> + Default>(
+pub fn parse2<Ctx, A: Args<Ctx> + Default>(
     ctx: &Ctx,
     args: &[String],
 ) -> ParseResult<<A as Args<Ctx>>::R> {

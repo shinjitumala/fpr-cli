@@ -57,7 +57,7 @@ pub fn args(i: TokenStream) -> TokenStream {
 
     let o = quote! {
         #[derive(Debug)]
-        struct #result_ty {
+        pub struct #result_ty {
             #(
                 #field_names: <#field_types as Args<#ctx>>::R,
             )*

@@ -1,5 +1,5 @@
 [package]
-name = "sh_gen"
+name = "sh"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,4 +7,7 @@ edition = "2021"
 
 [dependencies]
 cli = { version = "*", path = ".." }
+
+[build-dependencies]
+itertools = "0.12.1"
 regex = "1.10.4"

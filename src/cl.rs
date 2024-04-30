@@ -37,7 +37,7 @@ pub trait ActPath<Ctx> {
 
 impl<Ctx, A: cl2::Args<Ctx> + Default> ActPath<Ctx> for Act<Ctx, A> {
     fn next(&self, c: &Ctx, _: String, rest: Vec<String>) -> Result<(), String> {
-        let a = cl2::parse::<Ctx, A>(c, &rest)?;
+        let a = cl2::parse2::<Ctx, A>(c, &rest)?;
         Ok((self.act)(c, a))
     }
     fn desc(&self) -> &'static str {
