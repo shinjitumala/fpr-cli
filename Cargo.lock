@@ -195,6 +195,7 @@ name = "sh_gen"
 version = "0.1.0"
 dependencies = [
  "cli",
+ "regex",
 ]
 
 [[package]]
