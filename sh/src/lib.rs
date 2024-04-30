@@ -1,21 +1,3 @@
-// pub struct Ctx {}
-//
-// include!(concat!(env!("OUT_DIR"), "/gen.rs"));
-//
-// #[test]
-// fn test() {
-//     let args = vec![
-//         format!("--foo"),
-//         format!("aaa"),
-//         format!("--bar"),
-//         format!("aaa"),
-//     ];
-//     let r = test_from_args(&args).expect("Error");
-//     println!("{:?}", r);
-//     let r = test3_from_args(&args).expect("Error");
-//     println!("{:?}", r);
-// }
-
 use std::{
     env::{consts, var},
     fs::{self, canonicalize, File},
@@ -150,10 +132,11 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     buf.push_str(&format!("pub struct {} ", result_type_name));
     buf.push_str("{\n");
     for a in args.iter() {
-        buf.push_str(&format!(
-            "    #[arg(desc = (\"{}\"), i = Init::None)]\n",
-            a[2]
-        ));
+        let ty = match a[2] {
+            "" => format!("Init::None"),
+            e => format!("Init::Const(format!({}))", e),
+        };
+        buf.push_str(&format!("    #[arg(desc = (\"{}\"), i = {ty})]\n", a[3]));
         buf.push_str(&format!("    {}: Arg<Ctx, Req<One<String>>>,\n", a[0]));
     }
     buf.push_str("}\n");
@@ -242,7 +225,7 @@ pub fn run() {
         start: Regex::new("^# start metadata$").unwrap(),
         end: Regex::new("^# end metadata$").unwrap(),
         ty: Regex::new("^# type ([^ ]+)$").unwrap(),
-        arg: Regex::new(r"^([^=]+)=\$(\d+) # (.*)$").unwrap(),
+        arg: Regex::new(r"^([^=]+)=\$([^ ]+) # ([^:]*): (.*)$").unwrap(),
     };
 
     let src_win = format!("{}/win/", src);
