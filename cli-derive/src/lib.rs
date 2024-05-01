@@ -191,15 +191,9 @@ pub fn argmap(i: TokenStream) -> TokenStream {
         }
 
         impl Acts<#ctx> for #ident where Self: ActPath<#ctx> {
-            fn parse(c: &#ctx, args: &Vec<String>){
+            fn parse(c: &#ctx, args: &Vec<String>) -> Result<(), String> {
                 let d = Self::default();
-                let r = ActPath::<#ctx>::next(&d, c, format!(""), args.to_owned());
-                match r {
-                    Ok(_) => (),
-                    Err(ref e) => {
-                        println!("Parse error: {}", e);
-                    },
-                }
+                ActPath::<#ctx>::next(&d, c, format!(""), args.to_owned())
             }
             fn list() -> Vec<Vec<String>> {
                 let d = Self::default();

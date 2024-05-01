@@ -40,9 +40,10 @@ impl Parse for B {
     }
 }
 
-fn foox(c: &TestCtx, x: Ret<TestCtx, Test>) {
+fn foox(c: &TestCtx, x: Ret<TestCtx, Test>) -> Result<(), String> {
     println!("x: {:?}", x);
     println!("c: {:?}", c);
+    Ok(())
 }
 
 type A<Args> = Act<TestCtx, Args>;
@@ -52,7 +53,7 @@ type A<Args> = Act<TestCtx, Args>;
 struct TestActMap3 {
     #[act(desc = "IAM LEGEND",act = foox)]
     act9: A<Test>,
-    #[act(desc = "2",act = |_,_|{println!("act2")})]
+    #[act(desc = "2",act = |_,_|{println!("act2"); Ok(())})]
     act10: A<Test>,
 }
 
@@ -61,7 +62,7 @@ struct TestActMap3 {
 struct TestActMap2 {
     #[act(desc = "IAM LEGEND",act = foox)]
     act1: A<Test>,
-    #[act(desc = "2",act = |_,_|{println!("act2")})]
+    #[act(desc = "2",act = |_,_|{println!("act2"); Ok(())})]
     act2: A<Test>,
     act3: TestActMap3,
 }

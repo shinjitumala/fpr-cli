@@ -7,7 +7,7 @@ type Tkns = Vec<String>;
 
 pub struct Act<Ctx, A: cl2::Args<Ctx>> {
     desc: &'static str,
-    act: fn(&Ctx, A::R),
+    act: fn(&Ctx, A::R) -> Result<(), String>,
 }
 
 pub const LIST_SEP: &'static str = "_";
@@ -24,7 +24,7 @@ impl<Ctx, A: cl2::Args<Ctx> + Default> Clone for Act<Ctx, A> {
 }
 
 impl<Ctx, A: cl2::Args<Ctx> + Default> Act<Ctx, A> {
-    pub fn new(desc: &'static str, act: fn(&Ctx, A::R)) -> Self {
+    pub fn new(desc: &'static str, act: fn(&Ctx, A::R) -> Result<(), String>) -> Self {
         Self { desc, act }
     }
 }
@@ -38,7 +38,7 @@ pub trait ActPath<Ctx> {
 impl<Ctx, A: cl2::Args<Ctx> + Default> ActPath<Ctx> for Act<Ctx, A> {
     fn next(&self, c: &Ctx, _: String, rest: Vec<String>) -> Result<(), String> {
         let a = cl2::parse2::<Ctx, A>(c, &rest)?;
-        Ok((self.act)(c, a))
+        Ok((self.act)(c, a)?)
     }
     fn desc(&self) -> &'static str {
         self.desc
@@ -67,11 +67,11 @@ pub fn print_table(d: &Vec<(String, String)>) -> String {
 }
 
 pub trait Acts<Ctx> {
-    fn parse(c: &Ctx, args: &Tkns);
+    fn parse(c: &Ctx, args: &Tkns) -> Result<(), String>;
     fn list() -> Vec<Vec<String>>;
 }
 
-pub fn parse<Ctx, A: Acts<Ctx>>(c: &Ctx, args: &Tkns) {
+pub fn parse<Ctx, A: Acts<Ctx>>(c: &Ctx, args: &Tkns) -> Result<(), String> {
     A::parse(c, args)
 }
 pub fn list<Ctx, A: Acts<Ctx>>() -> Vec<Vec<String>> {
