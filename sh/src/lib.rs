@@ -159,8 +159,10 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
 
     buf.push_str(&format!("#[allow(dead_code)]\n"));
     buf.push_str(&format!(
-        "pub fn {}(a: Ret<Ctx, {}>) -> ",
-        name, result_type_name
+        "pub fn {}({}: Ret<Ctx, {}>) -> ",
+        name,
+        if args.is_empty() { "_" } else { "a" },
+        result_type_name
     ));
     buf.push_str(match ty {
         Type::Text => "Result<String, String>",
