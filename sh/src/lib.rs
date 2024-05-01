@@ -217,9 +217,9 @@ fn gen2(d: &String, p: &Pats, cfg: Config) -> String {
         .join("\n")
 }
 
-pub fn run() {
-    let src = var("CARGO_MANIFEST_DIR").unwrap() + "/script/";
-    let out = var("OUT_DIR").unwrap() + "/gen.rs";
+pub fn run(src: &'static str, main_plat: &'static str, dst_file: &'static str) {
+    let src = format!("{}/{}", var("CARGO_MANIFEST_DIR").unwrap(), src);
+    let out = format!("{}/{}", var("OUT_DIR").unwrap(), dst_file);
 
     let p = Pats {
         start: Regex::new("^# start metadata$").unwrap(),
@@ -228,10 +228,10 @@ pub fn run() {
         arg: Regex::new(r"^([^=]+)=\$([^ ]+) # ([^:]*): (.*)$").unwrap(),
     };
 
-    let src_win = format!("{}/win/", src);
+    let src_main_plat = format!("{}/{}/", src, main_plat);
 
     let r_shared = gen2(&src, &p, Config { shared: true });
-    let r_plat = gen2(&src_win, &p, Config { shared: false });
+    let r_plat = gen2(&src_main_plat, &p, Config { shared: false });
 
     fs::write(&out, format!("{r_shared}\n{r_plat}\n"))
         .expect(&format!("Failed to write to '{}'", &out));
