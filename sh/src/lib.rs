@@ -141,7 +141,8 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     }
     buf.push_str("}\n");
 
-    buf.push_str(&format!("pub fn {}_from_args(", name));
+    buf.push_str(&format!("#[allow(dead_code)]"));
+    buf.push_str(&format!("pub fn {}_args(", name));
     buf.push_str("args: &[String]) -> ");
     buf.push_str(match ty {
         Type::Text => "Result<String, String>",
@@ -153,11 +154,12 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
         "{}let a = parse2::<_, {}>(&c, args).map_err(|e| format!(\"Parse error: {{}}\\nUsage:\\n{{}}\", e, desc::<_, {}>(&c)))?;\n",
         I, result_type_name, result_type_name
     ));
-    buf.push_str(&format!("{}_from_struct(a)\n", name));
+    buf.push_str(&format!("#[allow(dead_code)]"));
+    buf.push_str(&format!("{}(a)\n", name));
     buf.push_str("}\n");
 
     buf.push_str(&format!(
-        "pub fn {}_from_struct(a: Ret<Ctx, {}>) -> ",
+        "pub fn {}(a: Ret<Ctx, {}>) -> ",
         name, result_type_name
     ));
     buf.push_str(match ty {
@@ -184,7 +186,7 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     buf.push_str(&format!("{}match r {{\n", I));
     buf.push_str(&match ty {
         Type::Text => format!("{}{}Ok(r) => if r.status.success() {{ Ok(String::from_utf8(r.stdout).map_err(|e| format!(\"Output not valid: {{}}\", e))?) }} else {{ Err(String::from_utf8(r.stderr).map_err(|e| format!(\"Output not valid: {{}}\", e))?)  }},\n", I, I),
-        Type::Interactive => format!("{}{}Ok(r) => if r.success() {{ Ok(()) }} else {{ Err(format!(\"Command failed.\")) }},\n", I, I),
+        Type::Interactive => format!("{}{}Ok(r) => if r.success() {{ Ok(()) }} else {{ Err(format!(\"Command failed. {{}}\", r)) }},\n", I, I),
     });
     buf.push_str(&match ty {
         Type::Text => format!(
