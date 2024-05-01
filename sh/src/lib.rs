@@ -143,22 +143,21 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     buf.push_str("}\n");
 
     buf.push_str(&format!("#[allow(dead_code)]"));
-    buf.push_str(&format!("pub fn {}_args(", name));
+    buf.push_str(&format!("pub fn {}_args(c: Ctx, ", name));
     buf.push_str("args: &[String]) -> ");
     buf.push_str(match ty {
         Type::Text => "Result<String, String>",
         Type::Interactive => "Result<(), String>",
     });
     buf.push_str(" {\n");
-    buf.push_str(&format!("{}let c = Ctx {{}};\n", I));
     buf.push_str(&format!(
         "{}let a = parse2::<_, {}>(&c, args).map_err(|e| format!(\"Parse error: {{}}\\nUsage:\\n{{}}\", e, desc::<_, {}>(&c)))?;\n",
         I, result_type_name, result_type_name
     ));
-    buf.push_str(&format!("#[allow(dead_code)]"));
     buf.push_str(&format!("{}(a)\n", name));
     buf.push_str("}\n");
 
+    buf.push_str(&format!("#[allow(dead_code)]\n"));
     buf.push_str(&format!(
         "pub fn {}(a: Ret<Ctx, {}>) -> ",
         name, result_type_name

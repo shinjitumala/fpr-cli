@@ -216,7 +216,7 @@ impl<Ctx, T: Parse2> Parse3<Ctx> for Req<T> {
             }
             None => match get_init(c, init) {
                 Some(e) => Ok(e),
-                None => Err(format!("Argument '{}' is required.", name)),
+                None => Err(format!("Argument '{}' is required.", add_prefix(&name.to_string()))),
             },
         }
     }
@@ -360,29 +360,36 @@ pub fn parse2<Ctx, A: Args<Ctx> + Default>(
     ctx: &Ctx,
     args: &[String],
 ) -> ParseResult<<A as Args<Ctx>>::R> {
-    let mut am = to_argmap(&args)?;
-    let a = A::default();
+    let y = || -> ParseResult<<A as Args<Ctx>>::R> {
+        let mut am = to_argmap(&args)?;
+        let a = A::default();
 
-    match am.get("help") {
-        Some(_) => {
-            println!("Usage:\n{}", desc::<Ctx, A>(ctx));
-            process::exit(0);
+        match am.get("help") {
+            Some(_) => {
+                println!("Usage:\n{}", desc::<Ctx, A>(ctx));
+                process::exit(0);
+            }
+            None => (),
         }
-        None => (),
-    }
 
-    let r = a.parse("", ctx, &mut am);
+        let r = a.parse("", ctx, &mut am)?;
 
-    let errs: Vec<String> = am
-        .iter()
-        .filter(|a| a.1.consumed == false)
-        .map(|a| format!("Unknown argument: {}", add_prefix(a.0)))
-        .collect();
+        let errs: Vec<String> = am
+            .iter()
+            .filter(|a| a.1.consumed == false)
+            .map(|a| format!("Unknown argument: {}", add_prefix(a.0)))
+            .collect();
 
-    if !errs.is_empty() {
-        Err(errs.join("\n"))
-    } else {
-        r
+        if !errs.is_empty() {
+            Err(format!("{}", errs.join("\n")))
+        } else {
+            Ok(r)
+        }
+    };
+
+    match y() {
+        Ok(a) => Ok(a),
+        Err(e) => Err(format!("{e}\nUsage:\n{}", desc::<Ctx, A>(ctx))),
     }
 }
 
