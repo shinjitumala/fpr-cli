@@ -174,11 +174,13 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     };
     buf.push_str(&format!("{I}let cmd = \"{cmd}\";"));
     buf.push_str(&format!("{I}let r = Command::new(cmd)\n"));
-    buf.push_str(&format!("{I}{I}.args(["));
-    for a in args.iter() {
-        buf.push_str(&format!("a.{}, ", a[0]));
+    if !args.is_empty() {
+        buf.push_str(&format!("{I}{I}.args(["));
+        for a in args.iter() {
+            buf.push_str(&format!("a.{}, ", a[0]));
+        }
+        buf.push_str("])\n");
     }
-    buf.push_str("])\n");
     buf.push_str(&match ty {
         Type::Text => format!("{I}{I}.output();\n"),
         Type::Interactive => format!("{I}{I}.status();\n"),
@@ -250,9 +252,7 @@ pub fn run_sh<Ctx, A: Acts<Ctx>>(dst: &'static str) {
             let cmd2 = c.join(" ");
             let mut s = String::new();
 
-            s.push_str(&format!(
-                "function {cmd} () {{\n    {cmd2} \"@\"\n}} "
-            ));
+            s.push_str(&format!("function {cmd} () {{\n    {cmd2} \"@\"\n}} "));
 
             s
         })
