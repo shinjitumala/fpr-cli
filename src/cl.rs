@@ -32,7 +32,7 @@ impl<Ctx, A: cl2::Args<Ctx> + Default> Act<Ctx, A> {
 pub trait ActPath<Ctx> {
     fn next(&self, c: &Ctx, pfx: String, rest: Vec<String>) -> Result<(), String>;
     fn desc(&self) -> &'static str;
-    fn list(pfx: Option<String>, name: &'static str) -> Vec<String>;
+    fn list(pfx: Vec<String>, name: &'static str) -> Vec<Vec<String>>;
 }
 
 impl<Ctx, A: cl2::Args<Ctx> + Default> ActPath<Ctx> for Act<Ctx, A> {
@@ -43,11 +43,10 @@ impl<Ctx, A: cl2::Args<Ctx> + Default> ActPath<Ctx> for Act<Ctx, A> {
     fn desc(&self) -> &'static str {
         self.desc
     }
-    fn list(pfx: Option<String>, name: &'static str) -> Vec<String> {
-        match pfx {
-            Some(pfx) => vec![format!("{}{}{}", pfx, LIST_SEP, name)],
-            None => vec![format!("{}", name)],
-        }
+    fn list(pfx: Vec<String>, name: &'static str) -> Vec<Vec<String>> {
+        let mut r = pfx.to_owned();
+        r.push(name.to_string());
+        vec![r]
     }
 }
 
@@ -69,12 +68,12 @@ pub fn print_table(d: &Vec<(String, String)>) -> String {
 
 pub trait Acts<Ctx> {
     fn parse(c: &Ctx, args: &Tkns);
-    fn list() -> Vec<String>;
+    fn list() -> Vec<Vec<String>>;
 }
 
 pub fn parse<Ctx, A: Acts<Ctx>>(c: &Ctx, args: &Tkns) {
     A::parse(c, args)
 }
-pub fn list<Ctx, A: Acts<Ctx>>() -> Vec<String> {
+pub fn list<Ctx, A: Acts<Ctx>>() -> Vec<Vec<String>> {
     A::list()
 }

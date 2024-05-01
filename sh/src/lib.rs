@@ -5,6 +5,8 @@ use std::{
     path::Path,
 };
 
+use cli::cl::{list, Acts};
+use itertools::Itertools;
 use regex::Regex;
 
 struct Pats {
@@ -132,7 +134,10 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     buf.push_str(&format!("pub struct {} ", result_type_name));
     buf.push_str("{\n");
     for a in args.iter() {
-        buf.push_str(&format!("    #[arg(desc = (\"{}\"), i = Init::None)]\n", a[2]));
+        buf.push_str(&format!(
+            "    #[arg(desc = (\"{}\"), i = Init::None)]\n",
+            a[2]
+        ));
         buf.push_str(&format!("    {}: Arg<Ctx, Req<One<String>>>,\n", a[0]));
     }
     buf.push_str("}\n");
@@ -233,4 +238,31 @@ pub fn run(src: &'static str, main_plat: &'static str, dst_file: &'static str) {
 
     fs::write(&out, format!("{r_shared}\n{r_plat}\n"))
         .expect(&format!("Failed to write to '{}'", &out));
+}
+
+pub fn run_sh<Ctx, A: Acts<Ctx>>(dst: &'static str) {
+    let cmds = list::<Ctx, A>();
+    let out = format!("{}/{}", var("OUT_DIR").unwrap(), dst);
+
+    let body = cmds
+        .iter()
+        .map(|c| {
+            let cmd = c.join("_");
+            let cmd2 = c.join(" ");
+            let mut s = String::new();
+
+            s.push_str(&format!(
+                "function {cmd} () {{\n    {cmd2} \"@\"\n}} "
+            ));
+
+            s
+        })
+        .join("\n");
+
+    const HEAD: &'static str = r"#!/bin/bash
+# Generated script";
+
+    let content = format!("{HEAD}\n{body}\n");
+
+    fs::write(&out, content).expect(&format!("Failed to write to {}", &out));
 }
