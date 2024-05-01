@@ -132,11 +132,7 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     buf.push_str(&format!("pub struct {} ", result_type_name));
     buf.push_str("{\n");
     for a in args.iter() {
-        let ty = match a[2] {
-            "" => format!("Init::None"),
-            e => format!("Init::Const(format!({}))", e),
-        };
-        buf.push_str(&format!("    #[arg(desc = (\"{}\"), i = {ty})]\n", a[3]));
+        buf.push_str(&format!("    #[arg(desc = (\"{}\"), i = Init::None)]\n", a[2]));
         buf.push_str(&format!("    {}: Arg<Ctx, Req<One<String>>>,\n", a[0]));
     }
     buf.push_str("}\n");
@@ -227,7 +223,7 @@ pub fn run(src: &'static str, main_plat: &'static str, dst_file: &'static str) {
         start: Regex::new("^# start metadata$").unwrap(),
         end: Regex::new("^# end metadata$").unwrap(),
         ty: Regex::new("^# type ([^ ]+)$").unwrap(),
-        arg: Regex::new(r"^([^=]+)=\$([^ ]+) # ([^:]*): (.*)$").unwrap(),
+        arg: Regex::new(r"^([^=]+)=\$([^ ]+) # (.*)$").unwrap(),
     };
 
     let src_main_plat = format!("{}/{}/", src, main_plat);

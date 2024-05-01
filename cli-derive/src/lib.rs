@@ -59,7 +59,7 @@ pub fn args(i: TokenStream) -> TokenStream {
         #[derive(Debug)]
         pub struct #result_ty {
             #(
-                #field_names: <#field_types as Args<#ctx>>::R,
+                pub #field_names: <#field_types as Args<#ctx>>::R,
             )*
         }
 
