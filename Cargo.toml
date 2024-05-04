@@ -8,6 +8,7 @@ edition = "2021"
 
 [dependencies]
 cli-derive = { version = "0.1.0", path = "cli-derive" }
+constcat = "0.5.0"
 itertools = "0.12.1"
 regex = "1.10.4"
 serde = { version = "1.0.198", features = ["derive"] }

@@ -20,6 +20,10 @@ struct Args {
     data: ast::Data<(), Arg>,
 }
 
+fn is_arg(a: &Arg) -> bool {
+    !(a.desc.is_none() && a.i.is_none())
+}
+
 #[proc_macro_derive(Args, attributes(args, arg))]
 pub fn args(i: TokenStream) -> TokenStream {
     let p = match Args::from_derive_input(&parse_macro_input!(i as DeriveInput)) {
@@ -29,67 +33,75 @@ pub fn args(i: TokenStream) -> TokenStream {
 
     let ident = &p.ident;
     let fields = p.data.as_ref().take_struct().expect("").fields;
-    let field_names = fields.iter().map(|f| &f.ident).collect::<Vec<_>>();
-    let field_types = fields.iter().map(|f| &f.ty).collect::<Vec<_>>();
-    let result_ty_name = format!("Result{}", ident);
-    let result_ty = Ident::new(&result_ty_name, ident.span());
     let ctx = &p.ctx;
 
-    let attr_fields = fields
+    let parsers = fields
         .iter()
         .map(|a| {
             let ident = a.ident.as_ref().unwrap();
             let ty = &a.ty;
-            if a.desc.is_none() && a.i.is_none() {
+            if !is_arg(a) {
                 return quote! {
-                    #ident: #ty::default()
+                    #ident: Args::parse(c, p)?
                 };
             };
 
             let desc = a.desc.as_ref().unwrap();
-            let i = a.i.as_ref().unwrap();
+            let init = a.i.as_ref().unwrap();
 
             quote! {
-                #ident: Arg::new((#desc).into(),(#i).into())
+                #ident: Parse2::parse2(&Arg::<#ctx, #ty>::new((#init).into(), (#desc).into()), concat!(PFX, stringify!(#ident)), c, p)?
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let descs = fields
+        .iter()
+        .map(|a| {
+            let ident = a.ident.as_ref().unwrap();
+            let ty = &a.ty;
+            if !is_arg(a) {
+                return quote! {
+                    r.extend(#ty::desc(c))
+                };
+            };
+
+            let desc = a.desc.as_ref().unwrap();
+            let init = a.i.as_ref().unwrap();
+
+            quote! {
+                r.push(Parse2::desc2(&Arg::<#ctx, #ty>::new((#init).into(), (#desc).into()), concat!(PFX, stringify!(#ident)), c))
             }
         })
         .collect::<Vec<_>>();
 
     let o = quote! {
-        #[derive(Debug)]
-        pub struct #result_ty {
-            #(
-                pub #field_names: <#field_types as Args<#ctx>>::R,
-            )*
-        }
-
         impl Args<#ctx> for #ident {
-            type R = #result_ty;
-
-            fn parse(&self, name: &'static str, c: &#ctx, am: &mut ArgMap) -> ParseResult<Self::R> {
-                Ok(Self::R {
+            fn parse(c: &#ctx, p: &mut ParsedArgs) -> Res<Self> {
+                use constcat::concat;
+                Ok(Self {
                     #(
-                        #field_names: Args::parse(&self.#field_names, stringify!(#field_names), c, am)?,
+                        #parsers,
                     )*
                 })
             }
-
-            fn desc(&self, name: &'static str, c: &#ctx) -> Vec<(String, String)> {
-                let mut r = Vec::<(String,String)>::new();
+            fn desc(c: &#ctx) -> Vec<Vec<String>> {
+                use constcat::concat;
+                let mut r = Vec::<Vec<String>>::new();
                 #(
-                    r.extend(Args::desc(&self.#field_names, stringify!(#field_names), c));
+                    #descs;
                 )*
-                r
-            }
-        }
-
-        impl Default for #ident {
-            fn default() -> Self {
-                Self {
-                    #(
-                        #attr_fields,
-                    )*
+                r.sort_by(|l, r| { l[0].cmp(&r[0]) });
+                if r.iter().find(|a| a[0] == "--help").is_none() {
+                    r.push(vec!["--help".to_string(), format!(""), format!("Display this help."), format!("")]);
                 }
+
+                // Check unique
+                let mut u = std::collections::HashSet::new();
+                let all_unique = r.iter().all(|x| u.insert(x));
+                assert!(all_unique, "There should not be duplicate args: {:?}", r);
+
+                r
             }
         }
     };
@@ -114,6 +126,10 @@ struct Acts {
     data: ast::Data<(), Act>,
 }
 
+fn is_act(a: &Act) -> bool {
+    !(a.desc.is_none() && a.act.is_none())
+}
+
 #[proc_macro_derive(Acts, attributes(acts, act))]
 pub fn argmap(i: TokenStream) -> TokenStream {
     let p = match Acts::from_derive_input(&parse_macro_input!(i as DeriveInput)) {
@@ -123,91 +139,90 @@ pub fn argmap(i: TokenStream) -> TokenStream {
 
     let ident = &p.ident;
     let fields = p.data.as_ref().take_struct().expect("").fields;
-    let field_names = fields.iter().map(|f| &f.ident).collect::<Vec<_>>();
-    let field_types = fields.iter().map(|f| &f.ty).collect::<Vec<_>>();
     let ctx = &p.ctx;
     let desc = &p.desc;
 
-    let attr_fields = fields
+    let parsers = fields
+        .iter()
+        .map(|a| {
+            let ident = a.ident.as_ref().unwrap();
+            let ty = &a.ty;
+            if !is_act(a) {
+                return quote! {
+                    stringify!(#ident) => #ty::parse(c, next_pfx, next_args),
+                };
+            }
+
+            let act = a.act.as_ref().unwrap();
+
+            quote! {
+                stringify!(#ident) => (#act)(c, parse2::<#ctx, #ty>(c, next_args)),
+            }
+        })
+        .collect::<Vec<_>>();
+    let descs = fields
         .iter()
         .map(|a| {
             let ident = a.ident.as_ref().unwrap();
             let ty = &a.ty;
             if a.desc.is_none() && a.act.is_none() {
                 return quote! {
-                    #ident: #ty::default()
+                    r.push(vec![stringify!(#ident).to_string(), #ty::act_desc().to_string()]);
                 };
             };
 
             let desc = a.desc.as_ref().unwrap();
-            let i = a.act.as_ref().unwrap();
 
             quote! {
-                #ident: Act::new(#desc, #i)
+                r.push(vec![stringify!(#ident).to_string(), #desc.to_string()]);
             }
         })
         .collect::<Vec<_>>();
 
     let o = quote! {
-        impl ActPath<#ctx> for #ident {
-            fn next(&self, c: &#ctx, pfx: String, rest: Vec<String>) -> Result<(), String>{
-                let usage = (||{
-                    let desc = vec![
-                        #(
-                            (format!(stringify!(#field_names)), format!("{}", self.#field_names.desc())),
-                        )*
-                    ];
-                    let v = print_table(&desc);
-                    format!("Available actions:\n{}", v)
-                })();
-                if(rest.len() == 0){
-                    return Err(format!("Expected an action in '{}'\n{}", pfx, &usage))
-                }
-                let next_rest = rest.clone().drain(1..).collect::<Vec<_>>();
-                let next = rest[0].to_owned();
-                let next_pfx = match pfx.as_str(){
-                    "" => next.to_owned(),
-                    _ => format!("{} {}", pfx, next),
+        impl Acts<#ctx> for #ident {
+            fn parse(c: &#ctx, pfx: Option<String>, args: &[String]) -> Res<()> {
+                let desc = || {
+                    print_table(&Self::desc())
                 };
+                if args.len() == 0 {
+                    return Err(format!("{}Available Actions:\n{}", match pfx {
+                        Some(e) => format!("Expected an action in '{e}'\n"),
+                        None => format!(""),
+                    }, desc()))
+                };
+                let next = &args[0];
+                let next_args = &args[1..];
+                let next_pfx = Some(match pfx {
+                    Some(ref e) => {
+                        let mut c = e.clone();
+                        c.push_str(next);
+                        c
+                    },
+                    None => format!("{next}"),
+                });
                 match next.as_str() {
                     #(
-                        stringify!(#field_names) => self.#field_names.next(c, next_pfx, next_rest),
+                        #parsers
                     )*
-                    _ => Err(format!("'{}' is not an action in '{}'\n{}", next, pfx, &usage)),
+                    ref a => Err(format!("Not an action{}: {a}\nAvailable Actions:\n{}", match pfx {
+                        Some(e) => format!(" in '{e}'"),
+                        None => format!(""),
+                    }, desc())),
                 }
             }
-            fn desc(&self) -> &'static str {
+            fn act_desc() -> &'static str {
                 #desc
             }
-            fn list(pfx: Vec<String>, name: &'static str) -> Vec<Vec<String>> {
+            fn desc() -> Vec<Vec<String>>{
                 let mut r = Vec::<Vec<String>>::new();
-                let mut next_pfx =  pfx.to_owned();
-                next_pfx.push(name.to_string());
                 #(
-                    r.extend(<#field_types as ActPath<#ctx>>::list(next_pfx.to_owned(), stringify!(#field_names)));
+                    #descs
                 )*
                 r
             }
-        }
-
-        impl Acts<#ctx> for #ident where Self: ActPath<#ctx> {
-            fn parse(c: &#ctx, args: &Vec<String>) -> Result<(), String> {
-                let d = Self::default();
-                ActPath::<#ctx>::next(&d, c, format!(""), args.to_owned())
-            }
-            fn list() -> Vec<Vec<String>> {
-                let d = Self::default();
-                <Self as ActPath<#ctx>>::list(vec![], <Self as ActPath<#ctx>>::desc(&d))
-            }
-        }
-
-        impl Default for #ident {
-            fn default() -> Self {
-                Self {
-                    #(
-                        #attr_fields,
-                    )*
-                }
+            fn list(pfx: &Vec<String>) -> Vec<Vec<String>>{
+                todo!()
             }
         }
     };
