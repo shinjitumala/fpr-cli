@@ -139,5 +139,8 @@ fn test() -> Res<()> {
         Err(r) => println!("{}", r),
     }
 
+    let r = list::<_, TestActs>();
+    println!("{:?}", r);
+
     Ok(())
 }

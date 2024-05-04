@@ -16,14 +16,14 @@ pub fn run<Ctx, A: Acts<Ctx>>(c: &Ctx) -> Res<()> {
     parse::<_, A>(c, &args().collect::<Vec<_>>())
 }
 
-trait Acts<Ctx> {
+pub trait Acts<Ctx> {
     fn parse(c: &Ctx, pfx: Option<String>, args: &[String]) -> Res<()>;
     fn desc() -> Vec<Vec<String>>;
     fn act_desc() -> &'static str;
     fn list(pfx: &Vec<String>) -> Vec<Vec<String>>;
 }
 
-trait Args<Ctx>
+pub trait Args<Ctx>
 where
     Self: Sized,
 {
@@ -64,13 +64,12 @@ struct Key {
     i: usize,
     used: bool,
 }
-struct ParsedArgs<'a, 'b> {
-    prog: &'a String,
+pub struct ParsedArgs<'b> {
     args: &'b [String],
     keys: Vec<Key>,
 }
 
-impl<'a, 'b> ParsedArgs<'a, 'b> {
+impl<'b> ParsedArgs<'b> {
     fn consume(&mut self, name: &'static str) -> Option<&[String]> {
         let (i, k) = self
             .keys
@@ -92,11 +91,9 @@ impl<'a, 'b> ParsedArgs<'a, 'b> {
 }
 
 fn parse_args(args: &[String]) -> Res<ParsedArgs> {
-    let prog = &args[0];
     let args = &args[1..];
 
     let r = ParsedArgs {
-        prog,
         args,
         keys: args
             .iter()
@@ -139,7 +136,7 @@ pub enum Desc<Ctx> {
     Dyn(fn(&Ctx) -> String),
 }
 
-struct Arg<Ctx, T: Parse2<Ctx>> {
+pub struct Arg<Ctx, T: Parse2<Ctx>> {
     init: Init<Ctx, T>,
     desc: Desc<Ctx>,
 }
@@ -157,7 +154,7 @@ fn get_desc<Ctx>(c: &Ctx, d: &Desc<Ctx>) -> String {
     }
 }
 
-trait Parse2<Ctx>
+pub trait Parse2<Ctx>
 where
     Self: Sized + Clone + Debug,
 {
@@ -261,7 +258,7 @@ impl<Ctx> From<&'static str> for Init<Ctx, String> {
     }
 }
 
-fn parse2<Ctx, A: Args<Ctx>>(c: &Ctx, args: &[String]) -> Res<A> {
+pub fn parse2<Ctx, A: Args<Ctx>>(c: &Ctx, args: &[String]) -> Res<A> {
     let usage = || print_table(&A::desc(c));
     let parse_err = |e| -> String { format!("Parse error: {e}\nUsage:\n{}", usage()) };
     let mut p = parse_args(args).map_err(parse_err)?;
@@ -285,7 +282,7 @@ fn parse2<Ctx, A: Args<Ctx>>(c: &Ctx, args: &[String]) -> Res<A> {
     }
 }
 
-fn print_table(d: &Vec<Vec<String>>) -> String {
+pub fn print_table(d: &Vec<Vec<String>>) -> String {
     if d.is_empty() {
         return format!("");
     };
@@ -312,11 +309,10 @@ fn print_table(d: &Vec<Vec<String>>) -> String {
 
 pub const LIST_SEP: &'static str = "_";
 
-struct Act<Ctx, A: Args<A>> {
-    act: fn(c: &Ctx, a: A) -> Res<()>,
-    desc: &'static str,
+pub fn parse<Ctx, A: Acts<Ctx>>(c: &Ctx, args: &[String]) -> Res<()> {
+    A::parse(c, Option::None, args)
 }
 
-fn parse<Ctx, A: Acts<Ctx>>(c: &Ctx, args: &[String]) -> Res<()> {
-    A::parse(c, Option::None, args)
+pub fn list<Ctx, A: Acts<Ctx>>() -> Vec<Vec<String>> {
+    A::list(&vec![])
 }

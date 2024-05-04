@@ -165,7 +165,7 @@ pub fn argmap(i: TokenStream) -> TokenStream {
         .map(|a| {
             let ident = a.ident.as_ref().unwrap();
             let ty = &a.ty;
-            if a.desc.is_none() && a.act.is_none() {
+            if !is_act(a) {
                 return quote! {
                     r.push(vec![stringify!(#ident).to_string(), #ty::act_desc().to_string()]);
                 };
@@ -175,6 +175,31 @@ pub fn argmap(i: TokenStream) -> TokenStream {
 
             quote! {
                 r.push(vec![stringify!(#ident).to_string(), #desc.to_string()]);
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let lists = fields
+        .iter()
+        .map(|a| {
+            let ident = a.ident.as_ref().unwrap();
+            let ty = &a.ty;
+            if !is_act(a) {
+                return quote! {
+                    r.extend(#ty::list(&(||{
+                        let mut a = pfx.clone();
+                        a.push(format!(stringify!(#ident)));
+                        a
+                    })()));
+                };
+            };
+
+            quote! {
+                r.push((||{
+                        let mut a = pfx.clone();
+                        a.push(format!(stringify!(#ident)));
+                        a
+                    })());
             }
         })
         .collect::<Vec<_>>();
@@ -222,7 +247,11 @@ pub fn argmap(i: TokenStream) -> TokenStream {
                 r
             }
             fn list(pfx: &Vec<String>) -> Vec<Vec<String>>{
-                todo!()
+                let mut r = Vec::<Vec<String>>::new();
+                #(
+                    #lists
+                )*
+                r
             }
         }
     };
