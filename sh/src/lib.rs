@@ -5,7 +5,8 @@ use std::{
     path::Path,
 };
 
-use cli::cl::{list, Acts};
+pub use std::process::Command;
+pub use cli::*;
 use itertools::Itertools;
 use regex::Regex;
 
@@ -138,7 +139,7 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
             "    #[arg(desc = (\"{}\"), i = Init::None)]\n",
             a[2]
         ));
-        buf.push_str(&format!("    {}: Arg<Ctx, Req<One<String>>>,\n", a[0]));
+        buf.push_str(&format!("    pub {}: String,\n", a[0]));
     }
     buf.push_str("}\n");
 
@@ -151,15 +152,15 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     });
     buf.push_str(" {\n");
     buf.push_str(&format!(
-        "{}let a = parse2::<_, {}>(&c, args).map_err(|e| format!(\"Parse error: {{}}\\nUsage:\\n{{}}\", e, desc::<_, {}>(&c)))?;\n",
-        I, result_type_name, result_type_name
+        "{}let a = parse2::<_, {}>(&c, args).map_err(|e| format!(\"Parse error: {{}}\", e))?;\n",
+        I, result_type_name,
     ));
     buf.push_str(&format!("{}(a)\n", name));
     buf.push_str("}\n");
 
     buf.push_str(&format!("#[allow(dead_code)]\n"));
     buf.push_str(&format!(
-        "pub fn {}({}: Ret<Ctx, {}>) -> ",
+        "pub fn {}({}: {}) -> ",
         name,
         if args.is_empty() { "_" } else { "a" },
         result_type_name
@@ -174,25 +175,28 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     } else {
         plat_absl()
     };
-    buf.push_str(&format!("{I}let cmd = \"{cmd}\";"));
-    buf.push_str(&format!("{I}let r = Command::new(cmd)\n"));
+
+    let mut buf2 = String::new();
+
+    buf2.push_str(&format!("{I}let cmd = \"{cmd}\";"));
+    buf2.push_str(&format!("{I}let r = std::process::Command::new(cmd)\n"));
     if !args.is_empty() {
-        buf.push_str(&format!("{I}{I}.args(["));
+        buf2.push_str(&format!("{I}{I}.args(["));
         for a in args.iter() {
-            buf.push_str(&format!("a.{}, ", a[0]));
+            buf2.push_str(&format!("a.{}, ", a[0]));
         }
-        buf.push_str("])\n");
+        buf2.push_str("])\n");
     }
-    buf.push_str(&match ty {
+    buf2.push_str(&match ty {
         Type::Text => format!("{I}{I}.output();\n"),
         Type::Interactive => format!("{I}{I}.status();\n"),
     });
-    buf.push_str(&format!("{}match r {{\n", I));
-    buf.push_str(&match ty {
+    buf2.push_str(&format!("{}match r {{\n", I));
+    buf2.push_str(&match ty {
         Type::Text => format!("{}{}Ok(r) => if r.status.success() {{ Ok(String::from_utf8(r.stdout).map_err(|e| format!(\"Output not valid: {{}}\", e))?) }} else {{ Err(String::from_utf8(r.stderr).map_err(|e| format!(\"Output not valid: {{}}\", e))?)  }},\n", I, I),
         Type::Interactive => format!("{}{}Ok(r) => if r.success() {{ Ok(()) }} else {{ Err(format!(\"Command failed. {{}}\", r)) }},\n", I, I),
     });
-    buf.push_str(&match ty {
+    buf2.push_str(&match ty {
         Type::Text => format!(
             "{}{}Err(r) => Err(format!(\"Command '{{}}' error: {{}}\", cmd, r)),\n",
             I, I
@@ -202,7 +206,24 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
             I, I
         ),
     });
-    buf.push_str(&format!("{}}}\n", I));
+    buf2.push_str(&format!("{}}}\n", I));
+
+    buf.push_str(&buf2);
+    buf.push_str("}\n");
+
+    buf.push_str(&format!("#[allow(dead_code)]\n"));
+    buf.push_str(&format!(
+        "pub async fn {}_async({}: {}) -> ",
+        name,
+        if args.is_empty() { "_" } else { "a" },
+        result_type_name
+    ));
+    buf.push_str(match ty {
+        Type::Text => "Result<String, String>",
+        Type::Interactive => "Result<(), String>",
+    });
+    buf.push_str(" {\n");
+    buf.push_str(&buf2);
     buf.push_str("}\n");
 
     println!("{}", buf);

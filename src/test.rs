@@ -8,6 +8,7 @@ struct TestCtx {
 
 #[derive(Args, Debug)]
 #[args(ctx = TestCtx)]
+#[allow(dead_code)]
 struct TestArgs2 {
     #[arg(desc = ("2"), i = Init::None)]
     names: Vec<String>,
@@ -15,6 +16,7 @@ struct TestArgs2 {
 
 #[derive(Args, Debug)]
 #[args(ctx = TestCtx)]
+#[allow(dead_code)]
 struct TestArgs {
     #[arg(desc = ("1"), i = Init::None)]
     name: String,
@@ -23,16 +25,18 @@ struct TestArgs {
 
 #[derive(Acts)]
 #[acts(ctx = TestCtx, desc = "foo")]
+#[allow(dead_code)]
 struct TestActs2 {
-    #[act(desc = "IAM LEGEND", act = |a,b|{Ok(())})]
+    #[act(desc = "IAM LEGEND", act = |_,_|{Ok(())})]
     act1: TestArgs,
 }
 
 #[derive(Acts)]
 #[acts(ctx = TestCtx, desc = "foo")]
+#[allow(dead_code)]
 struct TestActs {
     map1: TestActs2,
-    #[act(desc = "IAM LEGEND", act = |a,b|{Ok(())})]
+    #[act(desc = "IAM LEGEND", act = |_,_|{Ok(())})]
     act2: TestArgs2,
 }
 

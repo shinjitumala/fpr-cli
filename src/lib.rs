@@ -10,10 +10,12 @@ use std::env::args;
 use std::fmt::Debug;
 use std::str::FromStr;
 
-type Res<T> = Result<T, String>;
+pub type Res<T> = Result<T, String>;
 
 pub fn run<Ctx, A: Acts<Ctx>>(c: &Ctx) -> Res<()> {
-    parse::<_, A>(c, &args().collect::<Vec<_>>())
+    let args = args().collect::<Vec<_>>();
+    let prog = &args[0];
+    parse::<_, A>(c, &args[1..]).map_err(|e| format!("Usage: {prog} <actions...> <args...>\n{e}"))
 }
 
 pub trait Acts<Ctx> {
@@ -59,7 +61,7 @@ impl Parse for String {
     }
 }
 
-const PFX: &'static str = "--";
+pub const PFX: &'static str = "--";
 struct Key {
     i: usize,
     used: bool,
@@ -91,8 +93,6 @@ impl<'b> ParsedArgs<'b> {
 }
 
 fn parse_args(args: &[String]) -> Res<ParsedArgs> {
-    let args = &args[1..];
-
     let r = ParsedArgs {
         args,
         keys: args
@@ -142,7 +142,7 @@ pub struct Arg<Ctx, T: Parse2<Ctx>> {
 }
 
 impl<Ctx, T: Parse2<Ctx>> Arg<Ctx, T> {
-    fn new(init: Init<Ctx, T>, desc: Desc<Ctx>) -> Self {
+    pub fn new(init: Init<Ctx, T>, desc: Desc<Ctx>) -> Self {
         Self { init, desc }
     }
 }

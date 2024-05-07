@@ -156,7 +156,7 @@ pub fn argmap(i: TokenStream) -> TokenStream {
             let act = a.act.as_ref().unwrap();
 
             quote! {
-                stringify!(#ident) => (#act)(c, parse2::<#ctx, #ty>(c, next_args)),
+                stringify!(#ident) => (#act)(c, parse2::<#ctx, #ty>(c, next_args)?),
             }
         })
         .collect::<Vec<_>>();
