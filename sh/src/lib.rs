@@ -5,10 +5,10 @@ use std::{
     path::Path,
 };
 
-pub use std::process::Command;
 pub use cli::*;
 use itertools::Itertools;
 use regex::Regex;
+pub use std::process::Command;
 
 struct Pats {
     start: Regex,
@@ -264,8 +264,16 @@ pub fn run(src: &'static str, main_plat: &'static str, dst_file: &'static str) {
         .expect(&format!("Failed to write to '{}'", &out));
 }
 
-pub fn run_sh<Ctx, A: Acts<Ctx>>(dst: &'static str) {
-    let cmds = list::<Ctx, A>();
+pub fn run_sh<Ctx, A: Acts<Ctx>>(pfx: &'static str, dst: &'static str) {
+    let pfx = [format!("{pfx}")];
+    let cmds = list::<Ctx, A>()
+        .iter()
+        .map(|a| {
+            let mut a = a.to_owned();
+            a.splice(0..0, pfx.iter().cloned());
+            a
+        })
+        .collect::<Vec<_>>();
     let out = format!("{}/{}", var("OUT_DIR").unwrap(), dst);
 
     let body = cmds
