@@ -34,7 +34,7 @@ where
     fn desc(c: &Ctx) -> Vec<Vec<String>>;
 }
 
-trait Parse
+pub trait Parse
 where
     Self: Sized,
 {
