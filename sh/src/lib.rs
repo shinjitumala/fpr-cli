@@ -6,6 +6,7 @@ use std::{
 };
 
 pub use cli::*;
+use convert_case::{Case, Casing};
 use itertools::Itertools;
 use regex::Regex;
 pub use std::process::Command;
@@ -40,6 +41,8 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     let filename = filename
         .to_str()
         .expect(&format!("Filename is not valid: {:?}", filename));
+
+    let camel_name = name.to_case(Case::UpperCamel);
 
     let absl = canonicalize(&fp).expect(&format!("Failed to get absolute path: {:?}", &fp));
     let plat_absl = || {
@@ -128,7 +131,7 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
 
     let mut buf = String::new();
 
-    let result_type_name = format!("R{}", name);
+    let result_type_name = format!("A{}", camel_name);
 
     buf.push_str("#[derive(Args)]\n");
     buf.push_str("#[args(ctx = Ctx)]\n");
@@ -170,6 +173,7 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
         Type::Interactive => "Result<(), String>",
     });
     buf.push_str(" {\n");
+    buf.push_str("use std::process::Command;\n");
     let cmd = if cfg.shared {
         absl.to_owned()
     } else {
@@ -178,8 +182,8 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
 
     let mut buf2 = String::new();
 
-    buf2.push_str(&format!("{I}let cmd = \"{cmd}\";"));
-    buf2.push_str(&format!("{I}let r = std::process::Command::new(cmd)\n"));
+    buf.push_str(&format!("{I}let cmd = \"{cmd}\"; let r = "));
+    buf2.push_str(&format!("{I}Command::new(cmd)\n"));
     if !args.is_empty() {
         buf2.push_str(&format!("{I}{I}.args(["));
         for a in args.iter() {
@@ -188,15 +192,16 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
         buf2.push_str("])\n");
     }
     buf2.push_str(&match ty {
-        Type::Text => format!("{I}{I}.output();\n"),
-        Type::Interactive => format!("{I}{I}.status();\n"),
+        Type::Text => format!("{I}{I}.output()\n"),
+        Type::Interactive => format!("{I}{I}.status()\n"),
     });
-    buf2.push_str(&format!("{}match r {{\n", I));
-    buf2.push_str(&match ty {
+    let mut buf3 = String::new();
+    buf3.push_str(&format!("{}match r {{\n", I));
+    buf3.push_str(&match ty {
         Type::Text => format!("{}{}Ok(r) => if r.status.success() {{ Ok(String::from_utf8(r.stdout).map_err(|e| format!(\"Output not valid: {{}}\", e))?) }} else {{ Err(String::from_utf8(r.stderr).map_err(|e| format!(\"Output not valid: {{}}\", e))?)  }},\n", I, I),
         Type::Interactive => format!("{}{}Ok(r) => if r.success() {{ Ok(()) }} else {{ Err(format!(\"Command failed. {{}}\", r)) }},\n", I, I),
     });
-    buf2.push_str(&match ty {
+    buf3.push_str(&match ty {
         Type::Text => format!(
             "{}{}Err(r) => Err(format!(\"Command '{{}}' error: {{}}\", cmd, r)),\n",
             I, I
@@ -206,25 +211,30 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
             I, I
         ),
     });
-    buf2.push_str(&format!("{}}}\n", I));
+    buf3.push_str(&format!("{}}}\n", I));
 
-    buf.push_str(&buf2);
+    buf.push_str(&format!("{buf2};"));
+    buf.push_str(&buf3);
     buf.push_str("}\n");
 
-    buf.push_str(&format!("#[allow(dead_code)]\n"));
-    buf.push_str(&format!(
-        "pub async fn {}_async({}: {}) -> ",
-        name,
-        if args.is_empty() { "_" } else { "a" },
-        result_type_name
-    ));
-    buf.push_str(match ty {
-        Type::Text => "Result<String, String>",
-        Type::Interactive => "Result<(), String>",
-    });
-    buf.push_str(" {\n");
-    buf.push_str(&buf2);
-    buf.push_str("}\n");
+    // buf.push_str(&format!("#[allow(dead_code)]\n"));
+    // buf.push_str(&format!(
+    //     "pub async fn {}_async({}: {}) -> ",
+    //     name,
+    //     if args.is_empty() { "_" } else { "a" },
+    //     result_type_name
+    // ));
+    // buf.push_str(match ty {
+    //     Type::Text => "impl Future<Output = Result<String, String>>",
+    //     Type::Interactive => "impl Future<Output = Result<(), String>>",
+    // });
+    // buf.push_str(" {\n");
+    // buf.push_str("use async_process::Command;\n");
+    // buf.push_str("use futures::FutureExt;\n");
+    // buf.push_str(&format!("let cmd = \"{cmd}\";"));
+    // buf.push_str(&buf2);
+    // buf.push_str(&format!(".map(move |r|{{{buf3}}})"));
+    // buf.push_str("}\n");
 
     println!("{}", buf);
     buf
@@ -256,8 +266,9 @@ pub fn run(src: &'static str, main_plat: &'static str, dst_file: &'static str) {
     };
 
     let src_main_plat = format!("{}/{}/", src, main_plat);
+    let src_all = format!("{}/all/", src);
 
-    let r_shared = gen2(&src, &p, Config { shared: true });
+    let r_shared = gen2(&src_all, &p, Config { shared: true });
     let r_plat = gen2(&src_main_plat, &p, Config { shared: false });
 
     fs::write(&out, format!("{r_shared}\n{r_plat}\n"))

@@ -8,6 +8,7 @@ pub use cli_derive::*;
 use itertools::Itertools;
 use std::env::args;
 use std::fmt::Debug;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 pub type Res<T> = Result<T, String>;
@@ -58,6 +59,29 @@ impl Parse for String {
 
     fn desc() -> &'static str {
         stringify!(String)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct FileExist {
+    pub p: PathBuf,
+    pub s: String,
+}
+
+impl Parse for FileExist {
+    fn parse(i: &String) -> Res<Self> {
+        let p = PathBuf::from_str(i).or(Err(format!("Failed to parse as path '{i}'")))?;
+        if !p.exists() {
+            return Err(format!("Path does not exist '{i}'"));
+        };
+        if !p.is_file() {
+            return Err(format!("Not a file '{i}'"));
+        };
+        Ok(FileExist { p, s: i.to_owned() })
+    }
+
+    fn desc() -> &'static str {
+        stringify!(FileExist)
     }
 }
 
