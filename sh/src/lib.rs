@@ -3,6 +3,7 @@ use std::{
     fs::{self, canonicalize, File},
     io::{BufRead, BufReader},
     path::Path,
+    str::FromStr,
 };
 
 pub use cli::*;
@@ -94,40 +95,38 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
         inner_lines
     })();
 
-    let ty = lines
-        .iter()
-        .map(|l| p.ty.captures(&l))
-        .filter(|m| m.is_some())
-        .map(|m| m.unwrap())
-        .map(|m| {
-            m.iter()
-                .skip(1)
-                .map(|m| m.unwrap().as_str())
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
+    if lines.is_empty() {
+        panic!("Expected type at first line.")
+    };
 
-    if ty.len() != 1 {
-        panic!("Expected one type tag for '{}': {:?}", name, p.ty);
-    }
-    let ty = match ty[0][0] {
+    let ty =
+        p.ty.captures(&lines[0])
+            .expect(&format!("Expected one type tag for '{}': {:?}", name, p.ty));
+    let ty = match &ty[1] {
         "text" => Type::Text,
         "interactive" => Type::Interactive,
-        _ => panic!("Unexpected type for '{name}': {}", ty[0][0]),
+        e => panic!("Unexpected type for '{name}': {e}"),
     };
 
     let args = lines
         .iter()
-        .map(|l| p.arg.captures(&l))
-        .filter(|m| m.is_some())
-        .map(|m| m.unwrap())
-        .map(|m| {
-            m.iter()
+        .skip(1)
+        .map(|l| -> Result<_, _> { p.arg.captures(&l).ok_or(format!("Malformed line: {l}")) })
+        .map(|m| -> Result<_, String> {
+            Ok(m?
+                .iter()
                 .skip(1)
                 .map(|m| m.unwrap().as_str())
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>())
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()
+        .expect(&format!("Failed to parse file {absl}"));
+
+    args.iter().enumerate().for_each(|(i, a)| {
+        if i + 1 != usize::from_str(a[1]).expect("") {
+            panic!("Argument not ordered at {i} for '{:?}'", &fp);
+        }
+    });
 
     let mut buf = String::new();
 
@@ -140,7 +139,7 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     for a in args.iter() {
         buf.push_str(&format!(
             "    #[arg(desc = (\"{}\"), i = Init::None)]\n",
-            a[2]
+            a[2].replace(" # ", "")
         ));
         buf.push_str(&format!("    pub {}: String,\n", a[0]));
     }
@@ -262,7 +261,7 @@ pub fn run(src: &'static str, main_plat: &'static str, dst_file: &'static str) {
         start: Regex::new("^# start metadata$").unwrap(),
         end: Regex::new("^# end metadata$").unwrap(),
         ty: Regex::new("^# type ([^ ]+)$").unwrap(),
-        arg: Regex::new(r"^([^=]+)=\$([^ ]+) # (.*)$").unwrap(),
+        arg: Regex::new(r"^([^=]+)=\$([^ ]+)(.*)$").unwrap(),
     };
 
     let src_main_plat = format!("{}/{}/", src, main_plat);
