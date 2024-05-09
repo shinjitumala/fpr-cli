@@ -85,6 +85,29 @@ impl Parse for FileExist {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct DirExist {
+    pub p: PathBuf,
+    pub s: String,
+}
+
+impl Parse for DirExist {
+    fn parse(i: &String) -> Res<Self> {
+        let p = PathBuf::from_str(i).or(Err(format!("Failed to parse as path '{i}'")))?;
+        if !p.exists() {
+            return Err(format!("Path does not exist '{i}'"));
+        };
+        if !p.is_dir() {
+            return Err(format!("Not a directory '{i}'"));
+        };
+        Ok(DirExist { p, s: i.to_owned() })
+    }
+
+    fn desc() -> &'static str {
+        stringify!(FileExist)
+    }
+}
+
 pub const PFX: &'static str = "--";
 struct Key {
     i: usize,
