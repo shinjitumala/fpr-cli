@@ -7,7 +7,6 @@ use std::{
 };
 
 pub use cli::*;
-use convert_case::{Case, Casing};
 use itertools::Itertools;
 use regex::Regex;
 pub use std::process::Command;
@@ -16,10 +15,9 @@ struct Pats {
     start: Regex,
     ty: Regex,
     arg: Regex,
+    sh_var: Regex,
     end: Regex,
 }
-
-const I: &'static str = "    ";
 
 struct Config {
     shared: bool,
@@ -42,8 +40,6 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     let filename = filename
         .to_str()
         .expect(&format!("Filename is not valid: {:?}", filename));
-
-    let camel_name = name.to_case(Case::UpperCamel);
 
     let absl = canonicalize(&fp).expect(&format!("Failed to get absolute path: {:?}", &fp));
     let plat_absl = || {
@@ -108,135 +104,125 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
         e => panic!("Unexpected type for '{name}': {e}"),
     };
 
-    let args = lines
-        .iter()
-        .skip(1)
-        .map(|l| -> Result<_, _> { p.arg.captures(&l).ok_or(format!("Malformed line: {l}")) })
-        .map(|m| -> Result<_, String> {
-            Ok(m?
-                .iter()
-                .skip(1)
-                .map(|m| m.unwrap().as_str())
-                .collect::<Vec<_>>())
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .expect(&format!("Failed to parse file {absl}"));
+    struct Arg {
+        name: String,
+        num: usize,
+        varidic: bool,
+        desc: String,
+    }
+
+    let args =
+        lines
+            .iter()
+            .skip(1)
+            .map(|l| -> Result<_, _> { p.arg.captures(&l).ok_or(format!("Malformed line '{l}'")) })
+            .map(|m| -> Result<_, String> {
+                let m = m?;
+                let v = m[2].to_owned();
+                let v_caps = p
+                    .sh_var
+                    .captures(&v)
+                    .ok_or(format!("Malformed variable '{v}'"))?;
+                let (num, varidic) = if v_caps.get(3).is_some()
+                    && v_caps[1].to_string() == r#"("${@:"# {
+                    (v_caps[2].to_owned(), true)
+                } else if v_caps.get(3).is_none() && v_caps[1].to_string() == r#"$"# {
+                    (v_caps[2].to_owned(), false)
+                } else {
+                    return Err(format!("Malformed variable '{v}' '{:?}'", v_caps));
+                };
+                let num = usize::from_str(&num).expect(&format!("Not a digit '{num}'"));
+                Ok(Arg {
+                    name: m[1].to_owned(),
+                    num,
+                    varidic,
+                    desc: m[3].to_owned(),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .expect(&format!("Failed to parse file {absl}"));
 
     args.iter().enumerate().for_each(|(i, a)| {
-        if i + 1 != usize::from_str(a[1]).expect("") {
+        if i + 1 != a.num {
             panic!("Argument not ordered at {i} for '{:?}'", &fp);
+        }
+        if a.varidic && a.num != args.len() {
+            panic!(
+                "Only the last argument can be varidic in '{:?}' '{}'",
+                &fp, a.name
+            );
         }
     });
 
-    let mut buf = String::new();
-
-    let result_type_name = format!("A{}", camel_name);
-
-    buf.push_str("#[derive(Args)]\n");
-    buf.push_str("#[args(ctx = Ctx)]\n");
-    buf.push_str(&format!("pub struct {} ", result_type_name));
-    buf.push_str("{\n");
-    for a in args.iter() {
-        buf.push_str(&format!(
-            "    #[arg(desc = (\"{}\"), i = Init::None)]\n",
-            a[2].replace(" # ", "")
-        ));
-        buf.push_str(&format!("    pub {}: String,\n", a[0]));
-    }
-    buf.push_str("}\n");
-
-    buf.push_str(&format!("#[allow(dead_code)]"));
-    buf.push_str(&format!("pub fn {}_args(c: Ctx, ", name));
-    buf.push_str("args: &[String]) -> ");
-    buf.push_str(match ty {
-        Type::Text => "Result<String, String>",
-        Type::Interactive => "Result<(), String>",
-    });
-    buf.push_str(" {\n");
-    buf.push_str(&format!(
-        "{}let a = parse2::<_, {}>(&c, args).map_err(|e| format!(\"Parse error: {{}}\", e))?;\n",
-        I, result_type_name,
-    ));
-    buf.push_str(&format!("{}(a)\n", name));
-    buf.push_str("}\n");
-
-    buf.push_str(&format!("#[allow(dead_code)]\n"));
-    buf.push_str(&format!(
-        "pub fn {}({}: {}) -> ",
-        name,
-        if args.is_empty() { "_" } else { "a" },
-        result_type_name
-    ));
-    buf.push_str(match ty {
-        Type::Text => "Result<String, String>",
-        Type::Interactive => "Result<(), String>",
-    });
-    buf.push_str(" {\n");
-    buf.push_str("use std::process::Command;\n");
+    let doc = args
+        .iter()
+        .filter(|a| !a.desc.is_empty())
+        .map(|a| format!("/// {}{}", a.name, a.desc))
+        .join("\n");
+    let fn_args = args
+        .iter()
+        .map(|a| {
+            if !a.varidic {
+                format!("{}: String", a.name)
+            } else {
+                format!("{}: &[String]", a.name)
+            }
+        })
+        .join(", ");
+    let ret_ty = match ty {
+        Type::Text => "String",
+        Type::Interactive => "()",
+    };
+    let vec = if 0 < args.iter().filter(|a| a.varidic).count() {
+        "use velcro::vec;"
+    } else {
+        ""
+    };
+    let res = match ty {
+        Type::Text => "let r = ",
+        Type::Interactive => "let _ = ",
+    };
     let cmd = if cfg.shared {
         absl.to_owned()
     } else {
         plat_absl()
     };
-
-    let mut buf2 = String::new();
-
-    buf.push_str(&format!("{I}let cmd = \"{cmd}\"; let r = "));
-    buf2.push_str(&format!("{I}Command::new(cmd)\n"));
-    if !args.is_empty() {
-        buf2.push_str(&format!("{I}{I}.args(["));
-        for a in args.iter() {
-            buf2.push_str(&format!("a.{}, ", a[0]));
-        }
-        buf2.push_str("])\n");
-    }
-    buf2.push_str(&match ty {
-        Type::Text => format!("{I}{I}.output()\n"),
-        Type::Interactive => format!("{I}{I}.status()\n"),
-    });
-    let mut buf3 = String::new();
-    buf3.push_str(&format!("{}match r {{\n", I));
-    buf3.push_str(&match ty {
-        Type::Text => format!("{}{}Ok(r) => if r.status.success() {{ Ok(String::from_utf8(r.stdout).map_err(|e| format!(\"Output not valid: {{}}\", e))?) }} else {{ Err(String::from_utf8(r.stderr).map_err(|e| format!(\"Output not valid: {{}}\", e))?)  }},\n", I, I),
-        Type::Interactive => format!("{}{}Ok(r) => if r.success() {{ Ok(()) }} else {{ Err(format!(\"Command failed. {{}}\", r)) }},\n", I, I),
-    });
-    buf3.push_str(&match ty {
+    let cmd_args = if args.is_empty() {
+        format!("")
+    } else {
+        let a = args
+            .iter()
+            .map(|a| {
+                if !a.varidic {
+                    format!("{}", a.name)
+                } else {
+                    format!("..{}.to_owned()", a.name)
+                }
+            })
+            .join(", ");
+        format!(".args(vec![{a}])")
+    };
+    let exec = match ty {
+        Type::Text => "output",
+        Type::Interactive => "status",
+    };
+    let ret = match ty {
         Type::Text => format!(
-            "{}{}Err(r) => Err(format!(\"Command '{{}}' error: {{}}\", cmd, r)),\n",
-            I, I
+            r#"Ok(String::from_utf8(r.stdout).map_err(|e| format!("Output of '{cmd}' not valid UTF-8. '{{e}}'"))?)"#
         ),
-        Type::Interactive => format!(
-            "{}{}Err(r) => Err(format!(\"Command '{{}}' error: {{}}\", cmd, r)),\n",
-            I, I
-        ),
-    });
-    buf3.push_str(&format!("{}}}\n", I));
+        Type::Interactive => format!("Ok(())"),
+    };
 
-    buf.push_str(&format!("{buf2};"));
-    buf.push_str(&buf3);
-    buf.push_str("}\n");
-
-    // buf.push_str(&format!("#[allow(dead_code)]\n"));
-    // buf.push_str(&format!(
-    //     "pub async fn {}_async({}: {}) -> ",
-    //     name,
-    //     if args.is_empty() { "_" } else { "a" },
-    //     result_type_name
-    // ));
-    // buf.push_str(match ty {
-    //     Type::Text => "impl Future<Output = Result<String, String>>",
-    //     Type::Interactive => "impl Future<Output = Result<(), String>>",
-    // });
-    // buf.push_str(" {\n");
-    // buf.push_str("use async_process::Command;\n");
-    // buf.push_str("use futures::FutureExt;\n");
-    // buf.push_str(&format!("let cmd = \"{cmd}\";"));
-    // buf.push_str(&buf2);
-    // buf.push_str(&format!(".map(move |r|{{{buf3}}})"));
-    // buf.push_str("}\n");
-
-    println!("{}", buf);
-    buf
+    format!(
+        r#"{doc}
+#[allow(dead_code)]
+pub fn {name}({fn_args}) -> Res<{ret_ty}> {{
+    {vec}
+    {res}std::process::Command::new("{cmd}"){cmd_args}.{exec}().map_err(|e| format!("Command '{cmd}' error '{{e}}'"))?;
+    {ret}
+}}
+"#
+    )
 }
 
 fn gen2(d: &String, p: &Pats, cfg: Config) -> String {
@@ -261,7 +247,8 @@ pub fn run(src: &'static str, main_plat: &'static str, dst_file: &'static str) {
         start: Regex::new("^# start metadata$").unwrap(),
         end: Regex::new("^# end metadata$").unwrap(),
         ty: Regex::new("^# type ([^ ]+)$").unwrap(),
-        arg: Regex::new(r"^([^=]+)=\$([^ ]+)(.*)$").unwrap(),
+        arg: Regex::new(r#"^([^=]+)=([()"1-9${}:@]+)(.*)$"#).unwrap(),
+        sh_var: Regex::new(r#"([(${"@:]+)([0-9]+)(\}"\))?"#).unwrap(),
     };
 
     let src_main_plat = format!("{}/{}/", src, main_plat);
@@ -291,11 +278,7 @@ pub fn run_sh<Ctx, A: Acts<Ctx>>(pfx: &'static str, dst: &'static str) {
         .map(|c| {
             let cmd = c.join("_");
             let cmd2 = c.join(" ");
-            let mut s = String::new();
-
-            s.push_str(&format!("function {cmd} () {{\n    {cmd2} \"$@\"\n}} "));
-
-            s
+            format!(r#"function {cmd} () {{ {cmd2} "$@"; }} "#)
         })
         .join("\n");
 
