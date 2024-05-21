@@ -104,7 +104,7 @@ impl Parse for DirExist {
     }
 
     fn desc() -> &'static str {
-        stringify!(FileExist)
+        stringify!(DirExist)
     }
 }
 
