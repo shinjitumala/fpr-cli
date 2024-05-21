@@ -154,29 +154,32 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
         }
     });
 
+    let is_varidic = 0 < args.iter().filter(|a| a.varidic).count();
+
     let doc = args
         .iter()
         .filter(|a| !a.desc.is_empty())
         .map(|a| format!("/// {}{}", a.name, a.desc))
         .join("\n");
+    let generics = if is_varidic { "<I, S>" } else { "" };
+    let generics_where = if is_varidic {
+        "where I: IntoIterator<Item = S>, S: std::convert::AsRef<std::ffi::OsStr>"
+    } else {
+        ""
+    };
     let fn_args = args
         .iter()
         .map(|a| {
             if !a.varidic {
-                format!("{}: String", a.name)
+                format!("{}: &str", a.name)
             } else {
-                format!("{}: &[String]", a.name)
+                format!("{}: I", a.name)
             }
         })
         .join(", ");
     let ret_ty = match ty {
         Type::Text => "String",
         Type::Interactive => "()",
-    };
-    let vec = if 0 < args.iter().filter(|a| a.varidic).count() {
-        "use velcro::vec;"
-    } else {
-        ""
     };
     let res = match ty {
         Type::Text => "let r = ",
@@ -190,17 +193,15 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     let cmd_args = if args.is_empty() {
         format!("")
     } else {
-        let a = args
-            .iter()
+        args.iter()
             .map(|a| {
                 if !a.varidic {
-                    format!("{}", a.name)
+                    format!(".arg({})", a.name)
                 } else {
-                    format!("..{}.to_owned()", a.name)
+                    format!(".args({})", a.name)
                 }
             })
-            .join(", ");
-        format!(".args(vec![{a}])")
+            .join("")
     };
     let exec = match ty {
         Type::Text => "output",
@@ -216,8 +217,7 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     format!(
         r#"{doc}
 #[allow(dead_code)]
-pub fn {name}({fn_args}) -> Res<{ret_ty}> {{
-    {vec}
+pub fn {name}{generics}({fn_args}) -> Res<{ret_ty}> {generics_where} {{
     {res}std::process::Command::new("{cmd}"){cmd_args}.{exec}().map_err(|e| format!("Command '{cmd}' error '{{e}}'"))?;
     {ret}
 }}
