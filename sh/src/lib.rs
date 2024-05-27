@@ -177,8 +177,13 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
             }
         })
         .join(", ");
+    let fn_args2 = args.iter().map(|a| format!("{}", a.name)).join(", ");
     let ret_ty = match ty {
         Type::Text => "String",
+        Type::Interactive => "()",
+    };
+    let ret_raw_ty = match ty {
+        Type::Text => "Vec<u8>",
         Type::Interactive => "()",
     };
     let res = match ty {
@@ -209,16 +214,28 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     };
     let ret = match ty {
         Type::Text => format!(
-            r#"Ok(String::from_utf8(r.stdout).map_err(|e| format!("Output of '{cmd}' not valid UTF-8. '{{e}}'"))?)"#
+            r#"Ok(String::from_utf8(r).map_err(|e| format!("Output of '{cmd}' not valid UTF-8. '{{e}}'"))?)"#
         ),
         Type::Interactive => format!("Ok(())"),
     };
+    let ret_raw = match ty {
+        Type::Text => format!(r#"Ok(r.stdout)"#),
+        Type::Interactive => format!("Ok(())"),
+    };
+
+    let name_raw = format!("{name}_raw");
 
     format!(
         r#"{doc}
 #[allow(dead_code)]
-pub fn {name}{generics}({fn_args}) -> Res<{ret_ty}> {generics_where} {{
+pub fn {name_raw}{generics}({fn_args}) -> Res<{ret_raw_ty}> {generics_where} {{
     {res}std::process::Command::new("{cmd}"){cmd_args}.{exec}().map_err(|e| format!("Command '{cmd}' error '{{e}}'"))?;
+    {ret_raw}
+}}
+{doc}
+#[allow(dead_code)]
+pub fn {name}{generics}({fn_args}) -> Res<{ret_ty}> {generics_where} {{
+    {res}{name_raw}({fn_args2})?;
     {ret}
 }}
 "#
