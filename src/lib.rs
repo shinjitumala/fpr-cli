@@ -10,6 +10,7 @@ use std::env::args;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::str::FromStr;
+use unicode_width::UnicodeWidthStr;
 
 pub type Res<T> = Result<T, String>;
 
@@ -338,7 +339,7 @@ pub fn print_table(d: &Vec<Vec<String>>) -> String {
         .enumerate()
         .map(|(i, _)| {
             d.iter()
-                .map(|l| l[i].len())
+                .map(|l| l[i].width())
                 .max()
                 .expect("Data should not be empty")
         })
@@ -348,7 +349,7 @@ pub fn print_table(d: &Vec<Vec<String>>) -> String {
         .map(|v| {
             v.iter()
                 .enumerate()
-                .map(|(i, s)| format!("{0:1$}", s, w[i]))
+                .map(|(i, s)| format!("{}{: <2$}", s, "", w[i] - s.width()))
                 .join(" ")
         })
         .join("\n")
