@@ -23,11 +23,15 @@ struct TestArgs {
     a: TestArgs2,
 }
 
+fn noop<T>(_: &TestCtx, _: T) -> Res<()> {
+    Ok(())
+}
+
 #[derive(Acts)]
 #[acts(ctx = TestCtx, desc = "foo")]
 #[allow(dead_code)]
 struct TestActs2 {
-    #[act(desc = "IAM LEGEND", act = |_,_|{Ok(())})]
+    #[act(desc = "IAM LEGEND", act = noop)]
     act1: TestArgs,
 }
 
@@ -36,7 +40,7 @@ struct TestActs2 {
 #[allow(dead_code)]
 struct TestActs {
     map1: TestActs2,
-    #[act(desc = "IAM LEGEND", act = |_,_|{Ok(())})]
+    #[act(desc = "IAM LEGEND", act = noop)]
     act2: TestArgs2,
 }
 

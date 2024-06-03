@@ -156,7 +156,7 @@ pub fn argmap(i: TokenStream) -> TokenStream {
             let act = a.act.as_ref().unwrap();
 
             quote! {
-                stringify!(#ident) => ((#act)(c, parse2::<#ctx, #ty>(c, next_args)?)).map_err(|e: String| format!("Error: {e}\nUsage ({}):\n{}", stringify!(#ident), print_table(&#ty::desc(c)))),
+                stringify!(#ident) => ((#act)(c, parse2::<#ctx, #ty>(c, next_args)?)).map_err(|e| format!("Error: {e}\nUsage ({}):\n{}", stringify!(#ident), print_table(&#ty::desc(c)))),
             }
         })
         .collect::<Vec<_>>();
@@ -234,7 +234,8 @@ pub fn argmap(i: TokenStream) -> TokenStream {
                         Some(e) => format!(" in '{e}'"),
                         None => format!(""),
                     }, desc())),
-                }
+                }?;
+                Ok(())
             }
             fn act_desc() -> &'static str {
                 #desc
