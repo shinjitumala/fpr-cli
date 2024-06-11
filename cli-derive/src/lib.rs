@@ -234,3 +234,19 @@ pub fn acts(i: TokenStream) -> TokenStream {
     };
     o.into()
 }
+
+#[derive(Debug, FromDeriveInput)]
+#[darling(attributes(acts2), supports(enum_newtype))]
+struct Acts2 {
+    // ident: Ident,
+    // desc: LitStr,
+}
+
+#[proc_macro_derive(Acts2, attributes(act2))]
+pub fn acts2(i: TokenStream) -> TokenStream {
+    let _ = match Acts2::from_derive_input(&parse_macro_input!(i as DeriveInput)) {
+        Ok(p) => p,
+        Err(e) => return e.write_errors().into(),
+    };
+    quote! {}.into()
+}
