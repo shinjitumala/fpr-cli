@@ -1,13 +1,14 @@
-workspace = { members = ["cli-derive", "sh"] }
+workspace = { members = ["derives", "sh"] }
 [package]
-name = "cli"
+name = "fpr-cli"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cli-derive = { version = "0.1.0", path = "cli-derive" }
+derives = { version = "0.1.0", path = "derives" }
 constcat = "0.5.0"
 itertools = "0.12.1"
 regex = "1.10.4"
@@ -15,3 +16,4 @@ serde = { version = "1.0.198", features = ["derive"] }
 serde_json = "1.0.116"
 smart-default = "0.7.1"
 unicode-width = "0.1.12"
+inquire = "0.7.5"

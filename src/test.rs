@@ -1,4 +1,5 @@
 use crate::*;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -7,46 +8,48 @@ struct TestCtx {
 }
 
 #[derive(Args, Debug)]
-#[args(desc = "Execute test2.")]
-#[allow(dead_code)]
-struct TestArgs2 {
+#[args(desc = "foo")]
+pub struct TestArgs2 {
     #[arg(desc = "2", i = Init::None)]
     names: Vec<String>,
 }
-impl Run<TestCtx> for TestArgs2 {
-    fn run(c: &TestCtx, a: Self) -> Result<(), String> {
-        todo!()
+impl Run<C> for TestArgs2 {
+    type R = String;
+    fn run(_c: &C, a: Self) -> Result<Self::R, String> {
+        let _ = a.names;
+        Ok(format!(""))
     }
 }
 
 #[derive(Args, Debug)]
-#[args(desc = "Execute test.")]
-#[allow(dead_code)]
-struct TestArgs {
+#[args(desc = "bar")]
+pub struct TestArgs {
     #[arg(desc = "1", i = Init::None)]
     name: String,
     a: TestArgs2,
 }
-impl Run<TestCtx> for TestArgs {
-    fn run(c: &TestCtx, a: Self) -> Result<(), String> {
-        todo!()
+impl Run<C> for TestArgs {
+    type R = ();
+    fn run(_c: &C, a: Self) -> Result<Self::R, String> {
+        let _ = a.a;
+        let _ = a.name;
+        Ok(())
     }
 }
 
 #[derive(Acts)]
-#[acts(desc = "foo")]
+#[acts(desc = "y")]
 #[allow(dead_code)]
-struct TestActs2 {
-    act1: TestArgs,
-}
+struct Y(TestArgs2);
+
+type Z = TestArgs;
 
 #[derive(Acts)]
-#[acts(desc = "foo")]
+#[acts(desc = "main")]
 #[allow(dead_code)]
-struct TestActs {
-    map1: TestActs2,
-    act2: TestArgs2,
-}
+struct Main(Z, Y);
+
+type C = TestCtx;
 
 #[test]
 fn test() -> Result<(), String> {
@@ -54,6 +57,5 @@ fn test() -> Result<(), String> {
     let ctx: TestCtx = serde_json::from_reader(File::open("config.json").expect("Failed to open"))
         .expect("Failed to parse");
 
-    // run::<TestCtx, TestActs>(&ctx)
-    // todo!()
+    Main::run(&ctx)
 }
