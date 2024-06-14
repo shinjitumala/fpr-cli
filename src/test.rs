@@ -52,10 +52,13 @@ struct Main(Z, Y);
 type C = TestCtx;
 
 #[test]
-fn test() -> Result<(), String> {
+fn test() -> Result<(), ()> {
     use std::fs::File;
     let ctx: TestCtx = serde_json::from_reader(File::open("config.json").expect("Failed to open"))
         .expect("Failed to parse");
 
-    Main::run(&ctx)
+    match Main::run(&ctx) {
+        Ok(o) => Ok(o),
+        Err(e) => Err(println!("{e}")),
+    }
 }

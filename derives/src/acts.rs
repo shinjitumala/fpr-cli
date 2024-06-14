@@ -52,7 +52,7 @@ fn a(p: Acts) -> Result<TokenStream, String> {
                 vec![ #( #ks, )*  ]
             }
             fn desc_act() -> &'static str { #desc }
-            fn usage() -> Vec<[&'static str; 2]> {
+            fn usage_v() -> Vec<[&'static str; 2]> {
                 vec![
                     #( [ #ks, #tys::desc_act() ], )*
                 ]

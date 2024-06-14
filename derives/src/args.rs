@@ -25,51 +25,57 @@ fn a(p: Args) -> Result<TokenStream, String> {
     let i = &p.ident;
     let k = LitStr::new(i.to_string().to_case(Case::Kebab).as_str(), i.span());
 
-    let f = p
+    enum F {
+        Args(Ident, Type),
+        Arg(Ident, Type, LitStr, Expr, LitStr),
+    }
+
+    let f: Vec<_> = p
         .data
         .take_struct()
         .ok_or(format!("Expected a struct."))?
-        .fields;
+        .fields
+        .into_iter()
+        .map(|f| {
+            let b = is_arg(&f);
+            let i = f.ident.unwrap();
+            let ty = f.ty;
+            if !b {
+                F::Args(i, ty)
+            } else {
+                let desc = f.desc.unwrap();
+                let init = f.i.unwrap();
+                let k = LitStr::new(
+                    format!("--{}", i.to_string().to_case(Case::Kebab)).as_str(),
+                    i.span(),
+                );
+                F::Arg(i, ty, desc, init, k)
+            }
+        })
+        .collect();
     let desc = &p.desc;
 
     let parse = f
         .iter()
         .map(|a| {
-            let ident = a.ident.as_ref().unwrap();
-            let ty = &a.ty;
-            if !is_arg(a) {
-                return quote! {
-                    #ident: Args::new(c, args)?
-                };
-            };
-
-            let init = a.i.as_ref().unwrap();
-            let k = LitStr::new( format!("--{}",ident.to_string()).as_str(),ident.span());
-
-            quote! {
-                #ident: <#ty>::parse2(#init, #k, c, args).map_err(|e| ArgsParseErr::Arg(#k.to_string(), e))?
+            match a {
+                F::Args(ident, _) => 
+                    quote! { #ident: Args::new(c, args)? },
+                F::Arg(ident, ty, _, init, k) => 
+                    quote! { #ident: <#ty>::parse2(#init, #k, c, args).map_err(|e| ArgsParseErr::Arg(#k.to_string(), e, Self::usage(c)))? },
             }
         })
         .collect::<Vec<_>>();
 
     let descs = f
         .iter()
-        .map(|a| {
-            let ident = a.ident.as_ref().unwrap();
-            let ty = &a.ty;
-            if !is_arg(a) {
-                return quote! {
-                    #ty::add_usage(c, r)
-                };
-            };
-
-            let desc = a.desc.as_ref().unwrap();
-            let init = a.i.as_ref().unwrap();
-            let k = LitStr::new(format!("--{}", ident.to_string()).as_str(), ident.span());
-
-            quote! {
+        .map(|a| match a {
+            F::Args(_, ty) => quote! {
+                #ty::add_usage(c, r)
+            },
+            F::Arg(_, ty, desc, init, k) => quote! {
                 r.push(<#ty>::desc2(#init, #desc, #k, c))
-            }
+            },
         })
         .collect::<Vec<_>>();
 

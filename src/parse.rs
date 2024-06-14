@@ -28,12 +28,6 @@ impl Parse for String {
         stringify!(String)
     }
 }
-#[derive(Clone, Debug)]
-pub struct FileExist {
-    pub p: PathBuf,
-    pub s: String,
-}
-
 pub enum Parse2Err {
     ExpectedOne,
     Rquired,
@@ -54,10 +48,54 @@ impl From<Parse2Err> for ArgParseErr {
     }
 }
 pub enum ArgsParseErr {
-    UnexpectedToken(Arg),
-    Help,
-    UnknownArgs(Vec<Arg>),
-    Arg(String, ArgParseErr),
+    UnexpectedToken(Arg, String),
+    Help(String),
+    UnknownArgs(Vec<Arg>, String),
+    Arg(String, ArgParseErr, String),
+}
+impl Display for ArgsParseErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use ArgsParseErr::*;
+        match self {
+            UnexpectedToken(ref a, _) => write!(f, "Unexpected token '{a}'")?,
+            Help(_) => (),
+            UnknownArgs(ref a, _) => write!(
+                f,
+                "Unknown options '{}'",
+                a.into_iter().map(|a| format!(r#""{a}""#)).join(", ")
+            )?,
+            Arg(ref a, ref e, _) => write!(f, "Error parsing option '{a}.'\n{e}")?,
+        };
+        Ok(())
+    }
+}
+impl Display for ArgParseErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use ArgParseErr::*;
+        match self {
+            ParseErr(e) => write!(f, "{e}"),
+            Parse2Err(e) => write!(f, "{e}"),
+        }
+    }
+}
+impl Display for ParseErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Failed to parse '{}' as '{}' because '{}'",
+            self.i, self.ty, self.e
+        )
+    }
+}
+impl Display for Parse2Err {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Parse2Err::*;
+        match self {
+            ExpectedOne => write!(f, "Expected one value."),
+            Rquired => write!(f, "Required."),
+            ExpectedAtLeastOne => write!(f, "Expected one value minimum."),
+        }
+    }
 }
 pub enum ArgsErr {
     Run(String),
@@ -97,12 +135,6 @@ impl Parse for FileExist {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct DirExist {
-    pub p: PathBuf,
-    pub s: String,
-}
-
 fn dir_exist(i: &String) -> Result<PathBuf, String> {
     let p = PathBuf::from_str(i).map_err(|e| e.to_string())?;
     if !p.exists() {
@@ -132,10 +164,12 @@ impl Parse for DirExist {
 }
 
 pub const PFX: &'static str = "--";
+#[derive(Debug)]
 pub struct Key {
     pub i: usize,
     pub used: bool,
 }
+#[derive(Debug)]
 pub struct ParsedArgs<'b> {
     pub args: &'b [String],
     pub keys: Vec<Key>,
@@ -162,8 +196,11 @@ impl<'b> ParsedArgs<'b> {
     }
 }
 
+pub enum ParsedArgsErr {
+    UnexpectedToken(Arg),
+}
 impl<'b> ParsedArgs<'b> {
-    pub fn new(args: &[String]) -> Result<ParsedArgs, ArgsParseErr> {
+    pub fn new(args: &[String]) -> Result<ParsedArgs, ParsedArgsErr> {
         let mut end = false;
         let r = ParsedArgs {
             args,
@@ -171,7 +208,7 @@ impl<'b> ParsedArgs<'b> {
                 .iter()
                 .enumerate()
                 .filter(|&(_, a)| {
-                    if !end {
+                    if end {
                         true
                     } else {
                         let pfx = a.starts_with(PFX);
@@ -179,7 +216,7 @@ impl<'b> ParsedArgs<'b> {
                             end = true;
                             false
                         } else {
-                            true
+                            pfx
                         }
                     }
                 })
@@ -188,7 +225,7 @@ impl<'b> ParsedArgs<'b> {
         };
 
         if !r.keys.is_empty() && r.keys[0].i != 0 {
-            Err(ArgsParseErr::UnexpectedToken(args[0].to_owned()))
+            Err(ParsedArgsErr::UnexpectedToken(args[0].to_owned()))
         } else {
             Ok(r)
         }
@@ -374,5 +411,15 @@ impl<Ctx, T: Parse + Display> Parse2<Ctx> for OptVec<T> {
             d.into(),
             i.to_string(c),
         ]
+    }
+}
+impl Display for DirExist {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.s)
+    }
+}
+impl Display for FileExist {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.s)
     }
 }

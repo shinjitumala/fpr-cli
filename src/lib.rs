@@ -2,40 +2,69 @@ mod parse;
 mod test;
 
 use constcat::concat;
-use inquire::{InquireError, Select};
+use inquire::{list_option::ListOption, InquireError, Select};
 use itertools::Itertools;
-use std::{env::args, fmt::Display, str::FromStr};
+use std::{env::args, fmt::Display, path::PathBuf, str::FromStr};
 
 pub use derives::*;
-use parse::*;
+pub use parse::*;
 
 pub enum ActsErr {
     Run(ParseCtx, String),
     Inquire(String),
-    ExpectedAct(ParseCtx),
+    ExpectedAct(ParseCtx, String),
     UnknownAct(ParseCtx, String),
-    Args(ParseCtx, ArgsParseErr),
+    Args(ParseCtx, ArgsParseErr, String),
 }
 
 #[derive(Clone, Debug)]
 pub struct ParseCtx {
-    pfx: Vec<Arg>,
+    pub pfx: Vec<Arg>,
+}
+
+impl ActsErr {
+    fn display<'a>(self, arg0: &'a Arg) -> DActsErr<'a> {
+        DActsErr { e: self, arg0 }
+    }
+}
+struct DActsErr<'a> {
+    e: ActsErr,
+    arg0: &'a Arg,
 }
 
 impl Display for ActsErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use ActsErr::*;
-        write!(
-            f,
-            "{}",
-            match &self {
-                Run(_, e) => format!("Run error '{e}'"),
-                Inquire(e) => format!("{e}"),
-                ExpectedAct(_) => format!("Expected an act"),
-                UnknownAct(_, e) => format!("Unknown act '{e}'"),
-                Args(_, _) => todo!(),
+        match self {
+            Run(_, ref e) => write!(f, "Failed to run:\n{e}"),
+            Inquire(ref e) => write!(f, "{e}"),
+            ExpectedAct(_, _) => write!(f, "Expected an act.\n"),
+            UnknownAct(_, ref e) => write!(f, "Unknown act '{e}.'\n"),
+            Args(_, ref e, _) => match e {
+                ArgsParseErr::Help(_) => write!(f, "{e}"),
+                _ => write!(f, "Failed to parse opts.\n{e}\n"),
+            },
+        }
+    }
+}
+impl<'a> Display for DActsErr<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use ActsErr::*;
+        write!(f, "{}", self.e)?;
+        match self.e {
+            ExpectedAct(ref c, ref u) | UnknownAct(ref c, ref u) => {
+                write!(f, "Usage: {} {} <action>\n{u}", self.arg0, c.pfx.join(" "))?;
             }
-        )?;
+            Args(ref c, _, ref u) => {
+                write!(
+                    f,
+                    "Usage: {} {} <opts...>\nOpts:\n{u}",
+                    self.arg0,
+                    c.pfx.join(" ")
+                )?;
+            }
+            _ => (),
+        };
         Ok(())
     }
 }
@@ -50,12 +79,12 @@ pub trait Acts<C>: Sized {
     fn run(c: &C) -> Result<(), String> {
         let a: Vec<_> = args().collect();
         let mut s = ParseCtx { pfx: vec![] };
-        Self::next(c, &mut s, &a[1..]).map_err(|e| format!("{e}"))
+        Self::next(c, &mut s, &a[1..]).map_err(|e| format!("{}", e.display(&a[0])))
     }
 
     fn next(c: &C, s: &mut ParseCtx, args: &[Arg]) -> Result<(), ActsErr> {
         if args.is_empty() {
-            return Err(ActsErr::ExpectedAct(s.to_owned()));
+            return Err(ActsErr::ExpectedAct(s.to_owned(), Self::usage()));
         };
         let a = &args[0];
         let args = &args[1..];
@@ -63,11 +92,17 @@ pub trait Acts<C>: Sized {
         use ActsErr::*;
         match Self::next_impl(c, s, a, args) {
             Err(e) => match e {
-                UnknownAct(_, ref a) => {
-                    println!("{e}");
-                    let a = Select::new("Choose an action.", Self::opts())
-                        .with_starting_filter_input(&a)
-                        .prompt()?;
+                UnknownAct(_, _) => {
+                    print!("{e}");
+                    let opts: Vec<_> = to_lines(&Self::usage_v())
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, o)| ListOption::new(i, o))
+                        .collect();
+                    let a = Self::opts()[Select::new("Choose an action.", opts)
+                        .with_page_size(50)
+                        .prompt()?
+                        .index];
                     Self::next_impl(c, s, &a.into(), args)
                 }
                 _ => return Err(e),
@@ -82,20 +117,30 @@ pub trait Acts<C>: Sized {
         Self::add_paths(&mut pfx, &mut res);
         return res;
     }
+    fn usage() -> String {
+        to_table(&Self::usage_v())
+    }
 
     fn opts() -> Vec<&'static str>;
     fn next_impl(c: &C, s: &mut ParseCtx, a: &Arg, args: &[Arg]) -> Result<(), ActsErr>;
     fn desc_act() -> &'static str;
-    fn usage() -> Vec<[&'static str; 2]>;
+    fn usage_v() -> Vec<[&'static str; 2]>;
     fn add_paths(pfx: &mut Vec<String>, p: &mut Vec<Vec<String>>);
 }
 pub trait Args<C>: Run<C> + Sized {
     fn next_impl(c: &C, args: &[Arg]) -> Result<(), ArgsErr> {
-        let mut args = ParsedArgs::new(args)?;
+        let mut args = ParsedArgs::new(args).map_err(|e| {
+            use ParsedArgsErr::*;
+            match e {
+                UnexpectedToken(a) => ArgsParseErr::UnexpectedToken(a, Self::usage(c)),
+            }
+        })?;
 
         if args.consume(concat!(PFX, "help")).is_some() {
-            return Err(ArgsParseErr::Help.into());
+            return Err(ArgsParseErr::Help(Self::usage(c)).into());
         }
+
+        let a = Self::new(c, &mut args)?;
 
         let u = args
             .keys
@@ -104,25 +149,25 @@ pub trait Args<C>: Run<C> + Sized {
             .map(|k| args.args[k.i].to_owned())
             .collect::<Vec<_>>();
         if !u.is_empty() {
-            return Err(ArgsParseErr::UnknownArgs(u).into());
+            return Err(ArgsParseErr::UnknownArgs(u, Self::usage(c)).into());
         }
 
-        let _ = Self::run(c, Self::new(c, &mut args)?).map_err(|s| ArgsErr::Run(s))?;
+        let _ = Self::run(c, a).map_err(|s| ArgsErr::Run(s))?;
         Ok(())
     }
     fn next(c: &C, s: &mut ParseCtx, args: &[Arg]) -> Result<(), ActsErr> {
         match Self::next_impl(c, args) {
             Err(e) => match e {
                 ArgsErr::Run(r) => Err(ActsErr::Run(s.to_owned(), r)),
-                ArgsErr::Parse(e) => Err(ActsErr::Args(s.to_owned(), e)),
+                ArgsErr::Parse(e) => Err(ActsErr::Args(s.to_owned(), e, Self::usage(c))),
             },
             Ok(o) => Ok(o),
         }
     }
-    fn usage(c: &C) -> Vec<[String; 4]> {
+    fn usage(c: &C) -> String {
         let mut r: Vec<[String; 4]> = vec![];
         Self::add_usage(c, &mut r);
-        r
+        to_table(&r)
     }
     fn new(c: &C, args: &mut ParsedArgs) -> Result<Self, ArgsParseErr>;
     fn desc_act() -> &'static str;
@@ -141,10 +186,11 @@ where
     fn parse(i: &Arg) -> Result<Self, ParseErr>;
     fn desc() -> &'static str;
 }
+#[derive(Debug)]
 pub struct ParseErr {
-    ty: &'static str,
-    i: Arg,
-    e: String,
+    pub ty: &'static str,
+    pub i: Arg,
+    pub e: String,
 }
 
 pub struct DisplayVec<T: Display>(Vec<T>);
@@ -164,37 +210,30 @@ impl<T: Display> Into<Vec<T>> for DisplayVec<T> {
     }
 }
 
-// pub fn print_table(d: &Vec<Vec<String>>) -> String {
-//     if d.is_empty() {
-//         return format!("");
-//     };
-//     let w = d[0]
-//         .iter()
-//         .enumerate()
-//         .map(|(i, _)| {
-//             d.iter()
-//                 .map(|l| l[i].width())
-//                 .max()
-//                 .expect("Data should not be empty")
-//         })
-//         .collect::<Vec<_>>();
-//
-//     d.iter()
-//         .map(|v| {
-//             v.iter()
-//                 .enumerate()
-//                 .map(|(i, s)| format!("{}{: <2$}", s, "", w[i] - s.width()))
-//                 .join(" ")
-//         })
-//         .join("\n")
-// }
-//
-// pub const LIST_SEP: &'static str = "_";
-//
-// pub fn parse<Ctx, A: Acts<Ctx>>(c: &Ctx, args: &[String]) -> Res<()> {
-//     A::parse(c, Option::None, args)
-// }
-//
-// pub fn list<Ctx, A: Acts<Ctx>>() -> Vec<Vec<String>> {
-//     A::list(&vec![])
-// }
+pub fn to_lines<const S: usize, I: AsRef<str>>(d: &Vec<[I; S]>) -> Vec<String> {
+    use unicode_width::*;
+    let w: [usize; S] =
+        std::array::from_fn(|i| i).map(|i| d.iter().map(|l| l[i].as_ref().width()).max().unwrap());
+    d.into_iter()
+        .map(|v| {
+            v.iter()
+                .enumerate()
+                .map(|(i, s)| format!("{}{: <2$}", s.as_ref(), "", w[i] - s.as_ref().width()))
+                .join(" ")
+        })
+        .collect()
+}
+pub fn to_table<const S: usize, I: AsRef<str>>(d: &Vec<[I; S]>) -> String {
+    to_lines(d).join("\n")
+}
+
+#[derive(Clone, Debug)]
+pub struct FileExist {
+    pub p: PathBuf,
+    pub s: String,
+}
+#[derive(Clone, Debug)]
+pub struct DirExist {
+    pub p: PathBuf,
+    pub s: String,
+}

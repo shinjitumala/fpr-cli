@@ -6,7 +6,7 @@ use std::{
     str::FromStr,
 };
 
-pub use cli::*;
+pub use fpr_cli::*;
 use itertools::Itertools;
 use regex::Regex;
 pub use std::process::Command;
@@ -228,13 +228,13 @@ fn gen(fp: &Path, p: &Pats, cfg: &Config) -> String {
     format!(
         r#"{doc}
 #[allow(dead_code)]
-pub fn {name_raw}{generics}({fn_args}) -> Res<{ret_raw_ty}> {generics_where} {{
+pub fn {name_raw}{generics}({fn_args}) -> Result<{ret_raw_ty}, String> {generics_where} {{
     {res}std::process::Command::new("{cmd}"){cmd_args}.{exec}().map_err(|e| format!("Command '{cmd}' error '{{e}}'"))?;
     {ret_raw}
 }}
 {doc}
 #[allow(dead_code)]
-pub fn {name}{generics}({fn_args}) -> Res<{ret_ty}> {generics_where} {{
+pub fn {name}{generics}({fn_args}) -> Result<{ret_ty}, String> {generics_where} {{
     {res}{name_raw}({fn_args2})?;
     {ret}
 }}
@@ -280,7 +280,7 @@ pub fn run(src: &'static str, main_plat: &'static str, dst_file: &'static str) {
 
 pub fn run_sh<Ctx, A: Acts<Ctx>>(pfx: &'static str, dst: &'static str) {
     let pfx = [format!("{pfx}")];
-    let cmds = list::<Ctx, A>()
+    let cmds = A::list()
         .iter()
         .map(|a| {
             let mut a = a.to_owned();

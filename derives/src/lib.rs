@@ -1,12 +1,9 @@
 mod prelude {
-    pub use ast::Fields;
     pub use convert_case::{Case, Casing};
-    pub use darling::{ast, FromDeriveInput, FromField, FromVariant};
+    pub use darling::{ast, FromDeriveInput, FromField};
     pub use proc_macro::TokenStream;
     pub use quote::quote;
-    pub use syn::{
-        parse_macro_input, spanned::Spanned, DeriveInput, Expr, Ident, LitStr, Path, Type,
-    };
+    pub use syn::{parse_macro_input, spanned::Spanned, DeriveInput, Expr, Ident, LitStr, Type};
 }
 mod acts;
 mod args;
