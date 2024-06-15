@@ -1,5 +1,4 @@
 mod parse;
-mod test;
 
 use constcat::concat;
 use inquire::{list_option::ListOption, InquireError, Select};
