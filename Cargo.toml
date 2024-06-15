@@ -6,6 +6,7 @@ authors = ["Shinji Hoshino"]
 description = "A library that allows one to write cli tools quickly."
 edition = "2021"
 license = "Apache-2.0"
+repository = "https://github.com/shinjitumala/fpr-cli"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
