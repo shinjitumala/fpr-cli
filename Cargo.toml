@@ -1,7 +1,7 @@
-workspace = { members = ["derives", "sh"] }
+workspace = { members = ["derives"] }
 [package]
 name = "fpr-cli"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Shinji Hoshino"]
 description = "A library that allows one to write cli tools quickly."
 edition = "2021"
