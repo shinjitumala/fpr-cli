@@ -1,6 +1,5 @@
 mod parse;
 
-use constcat::concat;
 use inquire::{list_option::ListOption, InquireError, Select};
 use itertools::Itertools;
 use std::{env::args, fmt::Display, path::PathBuf, str::FromStr};
@@ -135,7 +134,7 @@ pub trait Args<C>: Run<C> + Sized {
             }
         })?;
 
-        if args.consume(concat!(PFX, "help")).is_some() {
+        if args.consume(&format!("{PFX}help")).is_some() {
             return Err(ArgsParseErr::Help(Self::usage(c)).into());
         }
 

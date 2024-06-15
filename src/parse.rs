@@ -176,7 +176,7 @@ pub struct ParsedArgs<'b> {
 }
 
 impl<'b> ParsedArgs<'b> {
-    pub fn consume(&mut self, name: &'static str) -> Option<&[String]> {
+    pub fn consume(&mut self, name: &str) -> Option<&[String]> {
         let (i, k) = self
             .keys
             .iter_mut()

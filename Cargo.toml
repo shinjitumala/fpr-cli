@@ -2,6 +2,8 @@ workspace = { members = ["derives", "sh"] }
 [package]
 name = "fpr-cli"
 version = "0.1.0"
+authors = ["Shinji Hoshino"]
+description = "A library that allows one to write cli tools quickly."
 edition = "2021"
 license = "Apache-2.0"
 
@@ -9,11 +11,9 @@ license = "Apache-2.0"
 
 [dependencies]
 derives = { version = "0.1.0", path = "derives" }
-constcat = "0.5.0"
 itertools = "0.12.1"
 regex = "1.10.4"
 serde = { version = "1.0.198", features = ["derive"] }
 serde_json = "1.0.116"
-smart-default = "0.7.1"
 unicode-width = "0.1.12"
 inquire = "0.7.5"
