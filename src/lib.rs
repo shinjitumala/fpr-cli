@@ -4,7 +4,7 @@ use inquire::{list_option::ListOption, InquireError, Select};
 use itertools::Itertools;
 use std::{env::args, fmt::Display, path::PathBuf, str::FromStr};
 
-pub use derives::*;
+pub use fpr_cli_derives::*;
 pub use parse::*;
 
 pub enum ActsErr {
