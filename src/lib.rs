@@ -81,7 +81,8 @@ pub trait Acts<C>: Sized {
 
     fn next(c: &C, s: &mut ParseCtx, args: &[Arg]) -> Result<(), ActsErr> {
         if args.is_empty() {
-            return Err(ActsErr::ExpectedAct(s.to_owned(), Self::usage()));
+            print!("{}", ActsErr::ExpectedAct(s.to_owned(), Self::usage()));
+            return Self::next(c, s, &[Self::select_act()?.to_owned()]);
         };
         let a = &args[0];
         let args = &args[1..];
@@ -91,21 +92,23 @@ pub trait Acts<C>: Sized {
             Err(e) => match e {
                 UnknownAct(_, _) => {
                     print!("{e}");
-                    let opts: Vec<_> = to_lines(&Self::usage_v())
-                        .into_iter()
-                        .enumerate()
-                        .map(|(i, o)| ListOption::new(i, o))
-                        .collect();
-                    let a = Self::opts()[Select::new("Choose an action.", opts)
-                        .with_page_size(50)
-                        .prompt()?
-                        .index];
-                    Self::next_impl(c, s, &a.into(), args)
+                    Self::next(c, s, &[Self::select_act()?.to_owned()])
                 }
                 _ => return Err(e),
             },
             e => return e,
         }
+    }
+    fn select_act() -> Result<&'static str, ActsErr> {
+        let opts: Vec<_> = to_lines(&Self::usage_v())
+            .into_iter()
+            .enumerate()
+            .map(|(i, o)| ListOption::new(i, o))
+            .collect();
+        Ok(Self::opts()[Select::new("Choose an action.", opts)
+            .with_page_size(50)
+            .prompt()?
+            .index])
     }
 
     fn list() -> Vec<Vec<String>> {
