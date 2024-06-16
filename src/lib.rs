@@ -4,7 +4,6 @@ use inquire::{list_option::ListOption, InquireError, Select};
 use itertools::Itertools;
 use std::{env::args, fmt::Display, path::PathBuf, str::FromStr};
 
-pub use fpr_cli_derives::*;
 pub use parse::*;
 
 pub enum ActsErr {
@@ -110,9 +109,9 @@ pub trait Acts<C>: Sized {
     }
 
     fn list() -> Vec<Vec<String>> {
-        let mut pfx = vec![];
+        let pfx = vec![];
         let mut res: Vec<Vec<String>> = vec![];
-        Self::add_paths(&mut pfx, &mut res);
+        Self::add_paths(&pfx, &mut res);
         return res;
     }
     fn usage() -> String {
@@ -123,7 +122,7 @@ pub trait Acts<C>: Sized {
     fn next_impl(c: &C, s: &mut ParseCtx, a: &Arg, args: &[Arg]) -> Result<(), ActsErr>;
     fn desc_act() -> &'static str;
     fn usage_v() -> Vec<[&'static str; 2]>;
-    fn add_paths(pfx: &mut Vec<String>, p: &mut Vec<Vec<String>>);
+    fn add_paths(pfx: &Vec<String>, p: &mut Vec<Vec<String>>);
 }
 pub trait Args<C>: Run<C> + Sized {
     fn next_impl(c: &C, args: &[Arg]) -> Result<(), ArgsErr> {
@@ -169,7 +168,7 @@ pub trait Args<C>: Run<C> + Sized {
     }
     fn new(c: &C, args: &mut ParsedArgs) -> Result<Self, ArgsParseErr>;
     fn desc_act() -> &'static str;
-    fn add_paths(pfx: &mut Vec<String>, p: &mut Vec<Vec<String>>);
+    fn add_paths(pfx: &Vec<String>, p: &mut Vec<Vec<String>>);
     fn add_usage(c: &C, r: &mut Vec<[String; 4]>);
 }
 pub trait Run<C> {
