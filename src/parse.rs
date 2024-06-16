@@ -239,7 +239,7 @@ pub enum Init<Ctx, T: Display> {
 }
 
 impl<C, T: Display> Init<C, T> {
-    fn get(self, c: &C) -> Option<T> {
+    pub fn get(self, c: &C) -> Option<T> {
         match self {
             Init::None => None,
             Init::Const(v) => Some(v),

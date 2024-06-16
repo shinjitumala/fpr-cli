@@ -173,6 +173,7 @@ pub trait Args<C>: Run<C> + Sized {
     fn desc_act() -> &'static str;
     fn add_paths(pfx: &Vec<String>, p: &mut Vec<Vec<String>>);
     fn add_usage(c: &C, r: &mut Vec<[String; 4]>);
+    fn default(c: &C) -> Self;
 }
 pub trait Run<C> {
     type R;
@@ -227,12 +228,12 @@ pub fn to_table<const S: usize, I: AsRef<str>>(d: &Vec<[I; S]>) -> String {
     to_lines(d).join("\n")
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FileExist {
     pub p: PathBuf,
     pub s: String,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct DirExist {
     pub p: PathBuf,
     pub s: String,
