@@ -232,10 +232,10 @@ impl<'b> ParsedArgs<'b> {
     }
 }
 
-pub enum Init<Ctx, T: Display> {
+pub enum Init<C, T: Display> {
     None,
     Const(T),
-    Dyn(fn(&Ctx) -> T),
+    Dyn(fn(&C) -> T),
 }
 
 impl<C, T: Display> Init<C, T> {
@@ -257,6 +257,7 @@ impl<C, T: Display> Init<C, T> {
 pub trait Parse2<C>
 where
     Self: Sized,
+    Self::I: Display,
 {
     type I;
     fn parse2(
@@ -264,15 +265,12 @@ where
         k: &'static str,
         c: &C,
         p: &mut ParsedArgs,
-    ) -> Result<Self, ArgParseErr>
-    where
-        Self::I: Display;
-    fn desc2(i: Init<C, Self::I>, d: &'static str, k: &'static str, c: &C) -> [String; 4]
-    where
-        Self::I: Display;
+    ) -> Result<Self, ArgParseErr>;
+    fn desc2(i: Init<C, Self::I>, d: &'static str, k: &'static str, c: &C) -> [String; 4];
+    fn default2(c: &C, i: Init<C, Self::I>) -> Self;
 }
 
-impl<C, T: Parse + Display> Parse2<C> for T {
+impl<C, T: Parse + Default> Parse2<C> for T {
     type I = T;
     fn parse2(
         i: Init<C, Self::I>,
@@ -300,9 +298,12 @@ impl<C, T: Parse + Display> Parse2<C> for T {
             i.to_string(c),
         ]
     }
+    fn default2(c: &C, i: Init<C, Self::I>) -> Self {
+        i.get(c).unwrap_or(Self::default())
+    }
 }
 
-impl<Ctx, T: Parse + Display> Parse2<Ctx> for Option<T> {
+impl<Ctx, T: Parse> Parse2<Ctx> for Option<T> {
     type I = T;
     fn parse2(
         i: Init<Ctx, T>,
@@ -331,6 +332,12 @@ impl<Ctx, T: Parse + Display> Parse2<Ctx> for Option<T> {
             d.into(),
             i.to_string(c),
         ]
+    }
+    fn default2(c: &Ctx, i: Init<Ctx, Self::I>) -> Self {
+        match i.get(c) {
+            Some(i) => Some(i),
+            None => None,
+        }
     }
 }
 
@@ -368,6 +375,12 @@ impl<Ctx, T: Parse + Display> Parse2<Ctx> for Vec<T> {
             i.to_string(c),
         ]
     }
+    fn default2(c: &Ctx, i: Init<Ctx, Self::I>) -> Self {
+        match i.get(c) {
+            Some(v) => v.0,
+            None => Self::default(),
+        }
+    }
 }
 
 pub struct OptVec<T: Display>(pub Vec<T>);
@@ -381,7 +394,7 @@ impl<T: Display> From<DisplayVec<T>> for OptVec<T> {
         Self(v.0)
     }
 }
-impl<Ctx, T: Parse + Display> Parse2<Ctx> for OptVec<T> {
+impl<Ctx, T: Parse> Parse2<Ctx> for OptVec<T> {
     type I = DisplayVec<T>;
     fn parse2(
         i: Init<Ctx, Self::I>,
@@ -411,6 +424,12 @@ impl<Ctx, T: Parse + Display> Parse2<Ctx> for OptVec<T> {
             d.into(),
             i.to_string(c),
         ]
+    }
+    fn default2(c: &Ctx, i: Init<Ctx, Self::I>) -> Self {
+        Self::from(match i.get(c) {
+            Some(v) => v.0,
+            None => <Vec<T>>::default(),
+        })
     }
 }
 impl Display for DirExist {

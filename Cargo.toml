@@ -1,6 +1,6 @@
 [package]
 name = "fpr-cli"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Shinji Hoshino <funny.pig.run@gmail.com>"]
 description = "A library that allows one to write cli tools quickly."
 edition = "2021"
@@ -10,7 +10,6 @@ repository = "https://github.com/shinjitumala/fpr-cli"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-fpr-cli-derives = "0.1.4"
 itertools = "0.12.1"
 regex = "1.10.4"
 serde = { version = "1.0.198", features = ["derive"] }

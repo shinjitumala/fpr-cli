@@ -182,7 +182,7 @@ pub trait Run<C> {
 
 pub trait Parse
 where
-    Self: Sized,
+    Self: Sized + Display,
 {
     fn parse(i: &Arg) -> Result<Self, ParseErr>;
     fn desc() -> &'static str;
