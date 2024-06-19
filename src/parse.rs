@@ -190,6 +190,8 @@ impl<'b> ParsedArgs<'b> {
         let idx = k.i + 1;
         Some(if i == self.keys.len() - 1 {
             &self.args[idx..]
+        } else if self.args[self.keys[i + 1].i] == PFX {
+            &self.args[self.keys[i + 1].i + 1..]
         } else {
             &self.args[idx..self.keys[i + 1].i]
         })
@@ -209,12 +211,12 @@ impl<'b> ParsedArgs<'b> {
                 .enumerate()
                 .filter(|&(_, a)| {
                     if end {
-                        true
+                        false
                     } else {
                         let pfx = a.starts_with(PFX);
                         if pfx && a.len() == PFX.len() {
                             end = true;
-                            false
+                            true
                         } else {
                             pfx
                         }

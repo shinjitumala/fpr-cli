@@ -146,6 +146,7 @@ pub trait Args<C>: Run<C> + Sized {
             .keys
             .iter()
             .filter(|k| !k.used)
+            .filter(|k| args.args[k.i] != PFX)
             .map(|k| args.args[k.i].to_owned())
             .collect::<Vec<_>>();
         if !u.is_empty() {
