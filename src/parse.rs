@@ -15,6 +15,19 @@ impl Parse for i32 {
         stringify!(i32)
     }
 }
+impl Parse for i64 {
+    fn parse(i: &Arg) -> Result<Self, ParseErr> {
+        i64::from_str(i).map_err(|e| ParseErr {
+            i: i.to_owned(),
+            ty: Self::desc(),
+            e: format!("{e}"),
+        })
+    }
+
+    fn desc() -> &'static str {
+        stringify!(i64)
+    }
+}
 impl Parse for String {
     fn parse(i: &Arg) -> Result<Self, ParseErr> {
         String::from_str(i).map_err(|e| ParseErr {
