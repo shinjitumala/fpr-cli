@@ -213,6 +213,9 @@ impl<T: Display> Into<Vec<T>> for DisplayVec<T> {
 }
 
 pub fn to_lines<const S: usize, I: AsRef<str>>(d: &Vec<[I; S]>) -> Vec<String> {
+    if d.is_empty() {
+        return vec![];
+    }
     use unicode_width::*;
     let w: [usize; S] =
         std::array::from_fn(|i| i).map(|i| d.iter().map(|l| l[i].as_ref().width()).max().unwrap());
