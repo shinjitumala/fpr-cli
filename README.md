@@ -2,7 +2,7 @@
 A tool to help you build CLI programs quickly.
 
 # Motivating Example
-```rust
+```rs
 #[derive(Acts)]
 #[acts(desc = "salt")]
 #[allow(dead_code)]
