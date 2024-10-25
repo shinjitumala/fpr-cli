@@ -1,10 +1,24 @@
+mod i;
 mod parse;
+mod util;
 
-use inquire::{list_option::ListOption, InquireError, Select};
-use itertools::Itertools;
-use std::{env::args, fmt::Display, path::PathBuf, str::FromStr};
+mod com {
+    pub use crate::*;
+    pub use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+    pub use inquire::{
+        autocompletion::Replacement, list_option::ListOption, Autocomplete, CustomUserError,
+        InquireError, MultiSelect, Select,Text,
+    };
+    pub use itertools::Itertools;
+    pub use std::{env::args, fmt::Display, path::PathBuf, str::FromStr};
+}
 
+pub use util::*;
+
+pub use i::*;
 pub use parse::*;
+
+use com::*;
 
 pub enum ActsErr {
     Run(ParseCtx, String),
@@ -210,35 +224,4 @@ impl<T: Display> Into<Vec<T>> for DisplayVec<T> {
     fn into(self) -> Vec<T> {
         self.0
     }
-}
-
-pub fn to_lines<const S: usize, I: AsRef<str>>(d: &Vec<[I; S]>) -> Vec<String> {
-    if d.is_empty() {
-        return vec![];
-    }
-    use unicode_width::*;
-    let w: [usize; S] =
-        std::array::from_fn(|i| i).map(|i| d.iter().map(|l| l[i].as_ref().width()).max().unwrap());
-    d.into_iter()
-        .map(|v| {
-            v.iter()
-                .enumerate()
-                .map(|(i, s)| format!("{}{: <2$}", s.as_ref(), "", w[i] - s.as_ref().width()))
-                .join(" ")
-        })
-        .collect()
-}
-pub fn to_table<const S: usize, I: AsRef<str>>(d: &Vec<[I; S]>) -> String {
-    to_lines(d).join("\n")
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct FileExist {
-    pub p: PathBuf,
-    pub s: String,
-}
-#[derive(Clone, Debug, Default)]
-pub struct DirExist {
-    pub p: PathBuf,
-    pub s: String,
 }
