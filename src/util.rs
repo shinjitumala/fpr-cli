@@ -1,3 +1,5 @@
+use chrono::{DateTime, FixedOffset, TimeZone};
+
 use crate::com::*;
 
 pub fn to_lines<const S: usize, I: AsRef<str>>(a: &[[I; S]]) -> Vec<String> {
@@ -169,4 +171,61 @@ mod filepath {
             })
         }
     }
+}
+
+#[derive(Clone)]
+pub struct MyDateTime<C: TimeZone> {
+    v: DateTime<C>,
+}
+impl<C: TimeZone> Into<DateTime<C>> for MyDateTime<C>
+where
+    DateTime<C>: From<DateTime<FixedOffset>>,
+{
+    fn into(self) -> DateTime<C> {
+        self.v.into()
+    }
+}
+
+impl<C: TimeZone> FromStr for MyDateTime<C>
+where
+    DateTime<C>: From<DateTime<FixedOffset>>,
+{
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self {
+            v: DateTime::parse_from_rfc3339(s)
+                .map_err(|e| format!("{e}"))?
+                .into(),
+        })
+    }
+}
+impl<C: TimeZone> Display for MyDateTime<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.v.to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
+        )
+    }
+}
+
+impl<C: TimeZone> CustomTypeValidator<String> for MyDateTime<C> {
+    fn validate(
+        &self,
+        i: &String,
+    ) -> Result<inquire::validator::Validation, inquire::CustomUserError> {
+        use inquire::validator::Validation::*;
+        match DateTime::parse_from_rfc3339(i) {
+            Ok(_) => Ok(Valid),
+            Err(e) => Ok(Invalid(ErrorMessage::Custom(format!("{e}")))),
+        }
+    }
+}
+
+pub fn input_date<'a, C: TimeZone>(prompt: &'a str) -> CustomType<MyDateTime<C>>
+where
+    DateTime<C>: From<DateTime<FixedOffset>>,
+{
+    CustomType::<MyDateTime<C>>::new(prompt)
 }

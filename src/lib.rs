@@ -6,8 +6,9 @@ mod com {
     pub use crate::*;
     pub use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
     pub use inquire::{
-        autocompletion::Replacement, list_option::ListOption, Autocomplete, CustomUserError,
-        InquireError, MultiSelect, Select,Text,
+        autocompletion::Replacement, list_option::ListOption, validator::CustomTypeValidator,
+        validator::ErrorMessage, Autocomplete, CustomType, CustomUserError, InquireError,
+        MultiSelect, Select, Text,
     };
     pub use itertools::Itertools;
     pub use std::{env::args, fmt::Display, path::PathBuf, str::FromStr};
