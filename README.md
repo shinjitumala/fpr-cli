@@ -77,6 +77,35 @@ impl Run<C> for Dis {
 }
 ```
 
+```bash
+$ salt
+Expected an act.
+? Choose an action.
+> printscreen   Take a screenshot.
+  headset       Headset controls.
+  copy          Copy to clipboard.
+  paste         Paste from clipboard.
+[↑↓ to move, enter to select, type to filter]
+# Submenus
+$ salt
+Expected an act.
+> Choose an action. headset       Headset controls.
+Expected an act.
+? Choose an action.
+  con Connect.
+> dis Disconnect.
+[↑↓ to move, enter to select, type to filter]
+Operation was interrupted by the user
+# Print help when needed.
+$ salt gopro
+Failed to parse opts.
+Error parsing option '--dev.'
+Required.
+Usage: salt gopro <opts...>
+Opts:
+--dev Req<String> The device name for the GoPro. ex) /dev/sde1
+```
+
 # Example projects
 - [gym by shinjitumala](https://github.com/shinjitumala/gym)
 
