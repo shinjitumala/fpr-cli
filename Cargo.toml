@@ -1,6 +1,6 @@
 [package]
 name = "fpr-cli"
-version = "0.1.10"
+version = "0.1.11"
 authors = ["Shinji Hoshino <funny.pig.run@gmail.com>"]
 description = "A library that allows one to write cli tools quickly."
 edition = "2021"

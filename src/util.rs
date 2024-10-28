@@ -27,7 +27,7 @@ pub fn to_table<const S: usize, I: AsRef<str>>(a: &[[I; S]]) -> String {
 }
 
 fn to_option_lines<const S: usize, I: AsRef<str>, T>(
-    t: &Vec<T>,
+    t: &[T],
     f: fn(&T) -> [I; S],
 ) -> Vec<ListOption<String>> {
     to_lines(&t.iter().map(f).collect::<Vec<_>>())
@@ -39,14 +39,14 @@ fn to_option_lines<const S: usize, I: AsRef<str>, T>(
 
 pub fn select_line<'a, const S: usize, I: AsRef<str>, T>(
     prompt: &'a str,
-    t: &Vec<T>,
+    t: &[T],
     f: fn(&T) -> [I; S],
 ) -> Select<'a, ListOption<String>> {
     Select::new(prompt, to_option_lines(t, f))
 }
 pub fn select_multiple_line<'a, const S: usize, I: AsRef<str>, T>(
     prompt: &'a str,
-    t: &Vec<T>,
+    t: &[T],
     f: fn(&T) -> [I; S],
 ) -> MultiSelect<'a, ListOption<String>> {
     MultiSelect::new(prompt, to_option_lines(t, f))
