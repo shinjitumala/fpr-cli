@@ -229,3 +229,32 @@ where
 {
     CustomType::<MyDateTime<C>>::new(prompt)
 }
+
+#[derive(Debug)]
+pub enum MyErr {
+    Inquire(inquire::InquireError),
+    Generic(String),
+}
+impl From<String> for MyErr {
+    fn from(v: String) -> Self {
+        Self::Generic(v)
+    }
+}
+impl From<inquire::InquireError> for MyErr {
+    fn from(v: inquire::InquireError) -> Self {
+        Self::Inquire(v)
+    }
+}
+impl From<MyErr> for String {
+    fn from(v: MyErr) -> Self {
+        use MyErr::*;
+        match v {
+            Inquire(e) => format!("{e}"),
+            Generic(e) => format!("{e}"),
+        }
+    }
+}
+
+pub trait Actions: Sized + Clone {
+    fn get(prompt: &str, starting_input: Option<&str>) -> Result<Self, MyErr>;
+}
