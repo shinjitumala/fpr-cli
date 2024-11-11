@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use chrono::{DateTime, FixedOffset, TimeZone};
 
 use crate::com::*;
@@ -257,4 +259,70 @@ impl From<MyErr> for String {
 
 pub trait Actions: Sized + Clone {
     fn get(prompt: &str, starting_input: Option<&str>) -> Result<Self, MyErr>;
+}
+
+#[derive(Clone)]
+pub struct TextWithAutocomplete<I: Clone, const S: usize> {
+    i: Vec<I>,
+
+    input: String,
+    matches: Vec<String>,
+    print: fn(&I) -> [String; S],
+}
+impl<I: Clone, const S: usize> TextWithAutocomplete<I, S> {
+    fn update_input(&mut self, input: &str) -> Result<(), CustomUserError> {
+        if input == self.input {
+            return Ok(());
+        }
+
+        self.input = input.to_owned();
+        let mut m: Vec<_> = self
+            .i
+            .iter()
+            .map(|c| {
+                let s = (self.print)(c);
+                let v = SkimMatcherV2::default()
+                    .smart_case()
+                    .fuzzy_match(&s.join(" "), input);
+                (s, v)
+            })
+            .collect();
+
+        m.sort_by(|a, b| b.1.cmp(&a.1));
+        self.matches = to_lines(&m.into_iter().map(|e| e.0).collect_vec());
+        Ok(())
+    }
+
+    pub fn new(i: Vec<I>, print: fn(&I) -> [String; S]) -> Self {
+        Self {
+            i,
+            print,
+            input: String::new(),
+            matches: Vec::new(),
+        }
+    }
+}
+
+impl<I: Clone, const S: usize> Autocomplete for TextWithAutocomplete<I, S> {
+    fn get_suggestions(&mut self, input: &str) -> Result<Vec<String>, inquire::CustomUserError> {
+        self.update_input(input)?;
+        Ok(self.matches.to_owned())
+    }
+
+    fn get_completion(
+        &mut self,
+        input: &str,
+        highlighted_suggestion: Option<String>,
+    ) -> Result<inquire::autocompletion::Replacement, inquire::CustomUserError> {
+        self.update_input(input)?;
+
+        Ok(match highlighted_suggestion {
+            Some(e) => Replacement::Some(e),
+            None => self
+                .matches
+                .first()
+                .map(|e| Replacement::Some(e.to_owned()))
+                .unwrap_or(Replacement::None),
+        })
+    }
 }
