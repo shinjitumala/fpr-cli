@@ -1,4 +1,7 @@
+use std::path::Path;
+
 use chrono::{DateTime, FixedOffset, TimeZone};
+use regex::Regex;
 
 use crate::com::*;
 
@@ -323,4 +326,28 @@ impl<I: Clone, const S: usize> Autocomplete for TextWithAutocomplete<I, S> {
                 .unwrap_or(Replacement::None),
         })
     }
+}
+
+type Res<T> = Result<T, MyErr>;
+pub fn env_var(s: &str) -> Res<String> {
+    Ok(std::env::var(s).map_err(|e| format!("Failed to get env '{s}' because '{e}'"))?)
+}
+pub fn reg(s: &str) -> Res<Regex> {
+    Ok(Regex::new(s).map_err(|e| format!("Failed to compile regex '{s}' because '{e}'"))?)
+}
+pub fn fs_write<P: AsRef<Path>, C: AsRef<[u8]>>(p: P, c: C) -> Res<()> {
+    Ok(std::fs::write(p.as_ref(), c).map_err(|e| {
+        format!(
+            "Failed to write to '{}' because '{e}'",
+            p.as_ref().to_string_lossy()
+        )
+    })?)
+}
+pub fn fs_read<P: AsRef<Path>>(p: P) -> Res<Vec<u8>> {
+    Ok(std::fs::read(p.as_ref()).map_err(|e| {
+        format!(
+            "Failed to read to '{}' because '{e}'",
+            p.as_ref().to_string_lossy()
+        )
+    })?)
 }
