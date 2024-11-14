@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{fs::ReadDir, path::Path};
 
 use chrono::{DateTime, FixedOffset, TimeZone};
 use regex::Regex;
@@ -346,7 +346,15 @@ pub fn fs_write<P: AsRef<Path>, C: AsRef<[u8]>>(p: P, c: C) -> Res<()> {
 pub fn fs_read<P: AsRef<Path>>(p: P) -> Res<Vec<u8>> {
     Ok(std::fs::read(p.as_ref()).map_err(|e| {
         format!(
-            "Failed to read to '{}' because '{e}'",
+            "Failed to read '{}' because '{e}'",
+            p.as_ref().to_string_lossy()
+        )
+    })?)
+}
+pub fn fs_read_dir<P: AsRef<Path>>(p: P) -> Res<ReadDir> {
+    Ok(std::fs::read_dir(p.as_ref()).map_err(|e| {
+        format!(
+            "Failed to read '{}' because '{e}'",
             p.as_ref().to_string_lossy()
         )
     })?)
