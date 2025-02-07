@@ -142,7 +142,7 @@ pub trait Acts<C>: Sized {
     fn usage_v() -> Vec<[&'static str; 2]>;
     fn add_paths(pfx: &Vec<String>, p: &mut Vec<Vec<String>>);
 }
-pub trait Args<C>: Run<C> + Sized {
+pub trait Args<C>: Sized {
     fn next_impl(c: &C, args: &[Arg]) -> Result<(), ArgsErr> {
         let mut args = ParsedArgs::new(args).map_err(|e| {
             use ParsedArgsErr::*;
@@ -168,7 +168,7 @@ pub trait Args<C>: Run<C> + Sized {
             return Err(ArgsParseErr::UnknownArgs(u, Self::usage(c)).into());
         }
 
-        let _ = Self::run(c, a).map_err(|s| ArgsErr::Run(s))?;
+        let _ = a.run(c).map_err(|s| ArgsErr::Run(s))?;
         Ok(())
     }
     fn next(c: &C, s: &mut ParseCtx, args: &[Arg]) -> Result<(), ActsErr> {
@@ -190,10 +190,8 @@ pub trait Args<C>: Run<C> + Sized {
     fn add_paths(pfx: &Vec<String>, p: &mut Vec<Vec<String>>);
     fn add_usage(c: &C, r: &mut Vec<[String; 4]>);
     fn default(c: &C) -> Self;
-}
-pub trait Run<C> {
-    type R;
-    fn run(c: &C, a: Self) -> Result<Self::R, String>;
+
+    fn run(self, c: &C) -> Result<(), String>;
 }
 
 pub trait Parse
