@@ -11,10 +11,10 @@ pub struct DirExist {
     pub s: String,
 }
 
-impl Parse for i32 {
-    fn parse(i: &Arg) -> Result<Self, ParseErr> {
+impl<'a> Parse<'a> for i32 {
+    fn parse(i: Arg<'a>) -> Result<Self, ParseErr> {
         i32::from_str(i).map_err(|e| ParseErr {
-            i: i.to_owned(),
+            i,
             ty: Self::desc(),
             e: format!("{e}"),
         })
@@ -24,10 +24,10 @@ impl Parse for i32 {
         stringify!(i32)
     }
 }
-impl Parse for i64 {
-    fn parse(i: &Arg) -> Result<Self, ParseErr> {
+impl<'a> Parse<'a> for i64 {
+    fn parse(i: Arg<'a>) -> Result<Self, ParseErr> {
         i64::from_str(i).map_err(|e| ParseErr {
-            i: i.to_owned(),
+            i,
             ty: Self::desc(),
             e: format!("{e}"),
         })
@@ -37,10 +37,10 @@ impl Parse for i64 {
         stringify!(i64)
     }
 }
-impl Parse for String {
-    fn parse(i: &Arg) -> Result<Self, ParseErr> {
+impl<'a> Parse<'a> for String {
+    fn parse(i: Arg<'a>) -> Result<Self, ParseErr> {
         String::from_str(i).map_err(|e| ParseErr {
-            i: i.to_owned(),
+            i,
             ty: Self::desc(),
             e: format!("{e}"),
         })
@@ -51,7 +51,7 @@ impl Parse for String {
     }
 }
 
-fn file_exist(i: &String) -> Result<PathBuf, String> {
+fn file_exist(i: &str) -> Result<PathBuf, String> {
     let p = PathBuf::from_str(i).map_err(|e| e.to_string())?;
     if !p.exists() {
         return Err(format!("Does not exist"));
@@ -62,12 +62,12 @@ fn file_exist(i: &String) -> Result<PathBuf, String> {
     Ok(p)
 }
 
-impl Parse for FileExist {
-    fn parse(i: &String) -> Result<Self, ParseErr> {
+impl<'a> Parse<'a> for FileExist {
+    fn parse(i: Arg<'a>) -> Result<Self, ParseErr> {
         match file_exist(i) {
             Ok(p) => Ok(FileExist { p, s: i.to_owned() }),
             Err(e) => Err(ParseErr {
-                i: i.to_owned(),
+                i,
                 ty: Self::desc(),
                 e,
             }),
@@ -79,7 +79,7 @@ impl Parse for FileExist {
     }
 }
 
-fn dir_exist(i: &String) -> Result<PathBuf, String> {
+fn dir_exist(i: &str) -> Result<PathBuf, String> {
     let p = PathBuf::from_str(i).map_err(|e| e.to_string())?;
     if !p.exists() {
         return Err(format!("Does not exist"));
@@ -90,12 +90,12 @@ fn dir_exist(i: &String) -> Result<PathBuf, String> {
     Ok(p)
 }
 
-impl Parse for DirExist {
-    fn parse(i: &String) -> Result<Self, ParseErr> {
+impl<'a> Parse<'a> for DirExist {
+    fn parse(i: Arg<'a>) -> Result<Self, ParseErr> {
         match dir_exist(i) {
             Ok(p) => Ok(DirExist { p, s: i.to_owned() }),
             Err(e) => Err(ParseErr {
-                i: i.to_owned(),
+                i,
                 ty: Self::desc(),
                 e,
             }),

@@ -21,30 +21,30 @@ pub use parse::*;
 
 use com::*;
 
-pub enum ActsErr {
-    Run(ParseCtx, String),
+pub enum ActsErr<'a> {
+    Run(ParseCtx<'a>, String),
     Inquire(String),
-    ExpectedAct(ParseCtx, String),
-    UnknownAct(ParseCtx, String),
-    Args(ParseCtx, ArgsParseErr, String),
+    ExpectedAct(ParseCtx<'a>, String),
+    UnknownAct(ParseCtx<'a>, &'a str),
+    Args(ParseCtx<'a>, ArgsParseErr<'a>, String),
 }
 
 #[derive(Clone, Debug)]
-pub struct ParseCtx {
-    pub pfx: Vec<Arg>,
+pub struct ParseCtx<'a> {
+    pub pfx: Vec<Arg<'a>>,
 }
 
-impl ActsErr {
-    fn display<'a>(self, arg0: &'a Arg) -> DActsErr<'a> {
+impl<'a> ActsErr<'a> {
+    fn display(self, arg0: &'a Arg) -> DActsErr<'a> {
         DActsErr { e: self, arg0 }
     }
 }
 struct DActsErr<'a> {
-    e: ActsErr,
-    arg0: &'a Arg,
+    e: ActsErr<'a>,
+    arg0: Arg<'a>,
 }
 
-impl Display for ActsErr {
+impl<'a> Display for ActsErr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use ActsErr::*;
         match self {
@@ -64,7 +64,10 @@ impl<'a> Display for DActsErr<'a> {
         use ActsErr::*;
         write!(f, "{}", self.e)?;
         match self.e {
-            ExpectedAct(ref c, ref u) | UnknownAct(ref c, ref u) => {
+            ExpectedAct(ref c, ref u) => {
+                write!(f, "Usage: {} {} <action>\n{u}", self.arg0, c.pfx.join(" "))?;
+            }
+            UnknownAct(ref c, ref u) => {
                 write!(f, "Usage: {} {} <action>\n{u}", self.arg0, c.pfx.join(" "))?;
             }
             Args(ref c, _, ref u) => {
@@ -80,24 +83,25 @@ impl<'a> Display for DActsErr<'a> {
         Ok(())
     }
 }
-impl From<InquireError> for ActsErr {
+impl<'a> From<InquireError> for ActsErr<'a> {
     fn from(v: InquireError) -> Self {
         Self::Inquire(format!("{v}"))
     }
 }
 
-pub type Arg = String;
+pub type Arg<'a> = &'a str;
 pub trait Acts<C>: Sized {
     fn run(c: &C) -> Result<(), String> {
-        let a: Vec<_> = args().collect();
+        let args = args().collect_vec();
+        let a: Vec<_> = args.iter().map(|e| e.as_str()).collect();
         let mut s = ParseCtx { pfx: vec![] };
         Self::next(c, &mut s, &a[1..]).map_err(|e| format!("{}", e.display(&a[0])))
     }
 
-    fn next(c: &C, s: &mut ParseCtx, args: &[Arg]) -> Result<(), ActsErr> {
+    fn next<'a>(c: &C, s: &mut ParseCtx<'a>, args: &[Arg<'a>]) -> Result<(), ActsErr<'a>> {
         if args.is_empty() {
             print!("{}", ActsErr::ExpectedAct(s.to_owned(), Self::usage()));
-            return Self::next(c, s, &[Self::select_act()?.to_owned()]);
+            return Self::next(c, s, &[Self::select_act()?]);
         };
         let a = &args[0];
         let args = &args[1..];
@@ -107,14 +111,14 @@ pub trait Acts<C>: Sized {
             Err(e) => match e {
                 UnknownAct(_, _) => {
                     print!("{e}");
-                    Self::next(c, s, &[Self::select_act()?.to_owned()])
+                    Self::next(c, s, &[Self::select_act()?])
                 }
                 _ => return Err(e),
             },
             e => return e,
         }
     }
-    fn select_act() -> Result<&'static str, ActsErr> {
+    fn select_act<'a>() -> Result<&'static str, ActsErr<'a>> {
         let opts: Vec<_> = to_lines(&Self::usage_v())
             .into_iter()
             .enumerate()
@@ -126,9 +130,9 @@ pub trait Acts<C>: Sized {
             .index])
     }
 
-    fn list() -> Vec<Vec<String>> {
+    fn list<'a>() -> Vec<Vec<Arg<'a>>> {
         let pfx = vec![];
-        let mut res: Vec<Vec<String>> = vec![];
+        let mut res: Vec<Vec<Arg<'a>>> = vec![];
         Self::add_paths(&pfx, &mut res);
         return res;
     }
@@ -137,13 +141,18 @@ pub trait Acts<C>: Sized {
     }
 
     fn opts() -> Vec<&'static str>;
-    fn next_impl(c: &C, s: &mut ParseCtx, a: &Arg, args: &[Arg]) -> Result<(), ActsErr>;
+    fn next_impl<'a>(
+        c: &C,
+        s: &mut ParseCtx<'a>,
+        a: &Arg<'a>,
+        args: &[Arg<'a>],
+    ) -> Result<(), ActsErr<'a>>;
     fn desc_act() -> &'static str;
     fn usage_v() -> Vec<[&'static str; 2]>;
-    fn add_paths(pfx: &Vec<String>, p: &mut Vec<Vec<String>>);
+    fn add_paths<'a>(pfx: &Vec<Arg<'a>>, p: &mut Vec<Vec<Arg<'a>>>);
 }
 pub trait Args<C>: Sized {
-    fn next_impl(c: &C, args: &[Arg]) -> Result<(), ArgsErr> {
+    fn next_impl<'a>(c: &C, args: &[Arg<'a>]) -> Result<(), ArgsErr<'a>> {
         let mut args = ParsedArgs::new(args).map_err(|e| {
             use ParsedArgsErr::*;
             match e {
@@ -162,7 +171,7 @@ pub trait Args<C>: Sized {
             .iter()
             .filter(|k| !k.used)
             .filter(|k| args.args[k.i] != PFX)
-            .map(|k| args.args[k.i].to_owned())
+            .map(|k| args.args[k.i])
             .collect::<Vec<_>>();
         if !u.is_empty() {
             return Err(ArgsParseErr::UnknownArgs(u, Self::usage(c)).into());
@@ -171,7 +180,7 @@ pub trait Args<C>: Sized {
         let _ = a.run(c).map_err(|s| ArgsErr::Run(s))?;
         Ok(())
     }
-    fn next(c: &C, s: &mut ParseCtx, args: &[Arg]) -> Result<(), ActsErr> {
+    fn next<'a>(c: &C, s: &mut ParseCtx<'a>, args: &[Arg<'a>]) -> Result<(), ActsErr<'a>> {
         match Self::next_impl(c, args) {
             Err(e) => match e {
                 ArgsErr::Run(r) => Err(ActsErr::Run(s.to_owned(), r)),
@@ -185,26 +194,26 @@ pub trait Args<C>: Sized {
         Self::add_usage(c, &mut r);
         to_table(&r)
     }
-    fn new(c: &C, args: &mut ParsedArgs) -> Result<Self, ArgsParseErr>;
+    fn new<'a, 'b>(c: &C, args: &mut ParsedArgs<'a, 'b>) -> Result<Self, ArgsParseErr<'b>>;
     fn desc_act() -> &'static str;
-    fn add_paths(pfx: &Vec<String>, p: &mut Vec<Vec<String>>);
+    fn add_paths<'a>(pfx: &Vec<Arg<'a>>, p: &mut Vec<Vec<Arg<'a>>>);
     fn add_usage(c: &C, r: &mut Vec<[String; 4]>);
     fn default(c: &C) -> Self;
 
     fn run(self, c: &C) -> Result<(), String>;
 }
 
-pub trait Parse
+pub trait Parse<'a>
 where
     Self: Sized + Display,
 {
-    fn parse(i: &Arg) -> Result<Self, ParseErr>;
+    fn parse(i: Arg<'a>) -> Result<Self, ParseErr<'a>>;
     fn desc() -> &'static str;
 }
 #[derive(Debug)]
-pub struct ParseErr {
+pub struct ParseErr<'a> {
     pub ty: &'static str,
-    pub i: Arg,
+    pub i: Arg<'a>,
     pub e: String,
 }
 

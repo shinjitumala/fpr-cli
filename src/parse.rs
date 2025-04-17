@@ -5,27 +5,27 @@ pub enum Parse2Err {
     Rquired,
     ExpectedAtLeastOne,
 }
-pub enum ArgParseErr {
-    ParseErr(ParseErr),
+pub enum ArgParseErr<'a> {
+    ParseErr(ParseErr<'a>),
     Parse2Err(Parse2Err),
 }
-impl From<ParseErr> for ArgParseErr {
-    fn from(v: ParseErr) -> Self {
+impl<'a> From<ParseErr<'a>> for ArgParseErr<'a> {
+    fn from(v: ParseErr<'a>) -> Self {
         ArgParseErr::ParseErr(v)
     }
 }
-impl From<Parse2Err> for ArgParseErr {
+impl<'a> From<Parse2Err> for ArgParseErr<'a> {
     fn from(v: Parse2Err) -> Self {
         ArgParseErr::Parse2Err(v)
     }
 }
-pub enum ArgsParseErr {
-    UnexpectedToken(Arg, String),
+pub enum ArgsParseErr<'a> {
+    UnexpectedToken(Arg<'a>, String),
     Help(String),
-    UnknownArgs(Vec<Arg>, String),
-    Arg(String, ArgParseErr, String),
+    UnknownArgs(Vec<Arg<'a>>, String),
+    Arg(&'static str, ArgParseErr<'a>, String),
 }
-impl Display for ArgsParseErr {
+impl<'a> Display for ArgsParseErr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use ArgsParseErr::*;
         match self {
@@ -41,7 +41,7 @@ impl Display for ArgsParseErr {
         Ok(())
     }
 }
-impl Display for ArgParseErr {
+impl<'a> Display for ArgParseErr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use ArgParseErr::*;
         match self {
@@ -50,7 +50,7 @@ impl Display for ArgParseErr {
         }
     }
 }
-impl Display for ParseErr {
+impl<'a> Display for ParseErr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -69,12 +69,12 @@ impl Display for Parse2Err {
         }
     }
 }
-pub enum ArgsErr {
+pub enum ArgsErr<'a> {
     Run(String),
-    Parse(ArgsParseErr),
+    Parse(ArgsParseErr<'a>),
 }
-impl From<ArgsParseErr> for ArgsErr {
-    fn from(v: ArgsParseErr) -> Self {
+impl<'a> From<ArgsParseErr<'a>> for ArgsErr<'a> {
+    fn from(v: ArgsParseErr<'a>) -> Self {
         Self::Parse(v)
     }
 }
@@ -86,13 +86,13 @@ pub struct Key {
     pub used: bool,
 }
 #[derive(Debug)]
-pub struct ParsedArgs<'b> {
-    pub args: &'b [String],
+pub struct ParsedArgs<'b, 'c> {
+    pub args: &'b [&'c str],
     pub keys: Vec<Key>,
 }
 
-impl<'b> ParsedArgs<'b> {
-    pub fn consume(&mut self, name: &str) -> Option<&[String]> {
+impl<'b, 'c> ParsedArgs<'b, 'c> {
+    pub fn consume(&mut self, name: &str) -> Option<&[&'c str]> {
         let (i, k) = self
             .keys
             .iter_mut()
@@ -114,11 +114,11 @@ impl<'b> ParsedArgs<'b> {
     }
 }
 
-pub enum ParsedArgsErr {
-    UnexpectedToken(Arg),
+pub enum ParsedArgsErr<'a> {
+    UnexpectedToken(Arg<'a>),
 }
-impl<'b> ParsedArgs<'b> {
-    pub fn new(args: &[String]) -> Result<ParsedArgs, ParsedArgsErr> {
+impl<'b, 'c> ParsedArgs<'b, 'c> {
+    pub fn new(args: &'b [&'c str]) -> Result<ParsedArgs<'b, 'c>, ParsedArgsErr<'c>> {
         let mut end = false;
         let r = ParsedArgs {
             args,
@@ -143,7 +143,7 @@ impl<'b> ParsedArgs<'b> {
         };
 
         if !r.keys.is_empty() && r.keys[0].i != 0 {
-            Err(ParsedArgsErr::UnexpectedToken(args[0].to_owned()))
+            Err(ParsedArgsErr::UnexpectedToken(args[0]))
         } else {
             Ok(r)
         }
@@ -172,7 +172,7 @@ impl<C, T: Display> Init<C, T> {
     }
 }
 
-pub trait Parse2<C>
+pub trait Parse2<'a, 'b, C>
 where
     Self: Sized,
     Self::I: Display,
@@ -182,20 +182,20 @@ where
         i: Init<C, Self::I>,
         k: &'static str,
         c: &C,
-        p: &mut ParsedArgs,
-    ) -> Result<Self, ArgParseErr>;
+        p: &mut ParsedArgs<'a, 'b>,
+    ) -> Result<Self, ArgParseErr<'b>>;
     fn desc2(i: Init<C, Self::I>, d: &'static str, k: &'static str, c: &C) -> [String; 4];
     fn default2(c: &C, i: Init<C, Self::I>) -> Self;
 }
 
-impl<C, T: Parse + Default> Parse2<C> for T {
+impl<'a, 'b, C, T: Parse<'a> + Default> Parse2<'b, 'a, C> for T {
     type I = T;
     fn parse2(
         i: Init<C, Self::I>,
         k: &'static str,
         c: &C,
-        p: &mut ParsedArgs,
-    ) -> Result<Self, ArgParseErr> {
+        p: &mut ParsedArgs<'b, 'a>,
+    ) -> Result<Self, ArgParseErr<'a>> {
         match p.consume(k) {
             Some(args) => {
                 if args.len() != 1 {
@@ -221,14 +221,14 @@ impl<C, T: Parse + Default> Parse2<C> for T {
     }
 }
 
-impl<Ctx, T: Parse> Parse2<Ctx> for Option<T> {
+impl<'a, 'b, Ctx, T: Parse<'a>> Parse2<'b, 'a, Ctx> for Option<T> {
     type I = T;
     fn parse2(
         i: Init<Ctx, T>,
         k: &'static str,
         c: &Ctx,
-        p: &mut ParsedArgs,
-    ) -> Result<Self, ArgParseErr> {
+        p: &mut ParsedArgs<'b, 'a>,
+    ) -> Result<Self, ArgParseErr<'a>> {
         match p.consume(k) {
             Some(args) => {
                 if args.len() != 1 {
@@ -259,14 +259,14 @@ impl<Ctx, T: Parse> Parse2<Ctx> for Option<T> {
     }
 }
 
-impl<Ctx, T: Parse + Display> Parse2<Ctx> for Vec<T> {
+impl<'a, 'b, Ctx, T: Parse<'a> + Display> Parse2<'b, 'a, Ctx> for Vec<T> {
     type I = DisplayVec<T>;
     fn parse2(
         i: Init<Ctx, Self::I>,
         k: &'static str,
         c: &Ctx,
-        p: &mut ParsedArgs,
-    ) -> Result<Self, ArgParseErr> {
+        p: &mut ParsedArgs<'b, 'a>,
+    ) -> Result<Self, ArgParseErr<'a>> {
         match p.consume(k) {
             Some(args) => {
                 let args = args
@@ -312,14 +312,14 @@ impl<T: Display> From<DisplayVec<T>> for OptVec<T> {
         Self(v.0)
     }
 }
-impl<Ctx, T: Parse> Parse2<Ctx> for OptVec<T> {
+impl<'a, 'b, Ctx, T: Parse<'a>> Parse2<'b, 'a, Ctx> for OptVec<T> {
     type I = DisplayVec<T>;
     fn parse2(
         i: Init<Ctx, Self::I>,
         k: &'static str,
         c: &Ctx,
-        p: &mut ParsedArgs,
-    ) -> Result<Self, ArgParseErr> {
+        p: &mut ParsedArgs<'b, 'a>,
+    ) -> Result<Self, ArgParseErr<'a>> {
         match p.consume(k) {
             Some(args) => {
                 let args = args
