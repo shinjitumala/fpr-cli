@@ -55,7 +55,7 @@ pub fn select_multiple_line<'a, const S: usize, I: AsRef<str>, T>(
     MultiSelect::new(prompt, to_option_lines(t, f))
 }
 
-pub fn input_path<'a>(prompt: &'a str) -> Text {
+pub fn input_path<'_a>(prompt: &str) -> Text {
     Text::new(prompt).with_autocomplete(filepath::Comp::default())
 }
 
@@ -226,7 +226,7 @@ impl<C: TimeZone> CustomTypeValidator<String> for MyDateTime<C> {
     }
 }
 
-pub fn input_date<'a, C: TimeZone>(prompt: &'a str) -> CustomType<MyDateTime<C>>
+pub fn input_date<'_a, C: TimeZone>(prompt: &str) -> CustomType<MyDateTime<C>>
 where
     DateTime<C>: From<DateTime<FixedOffset>>,
 {
