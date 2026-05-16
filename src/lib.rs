@@ -18,6 +18,7 @@ pub use util::*;
 
 pub use i::*;
 pub use parse::*;
+pub use fpr_cli_derives::*;
 
 use com::*;
 
