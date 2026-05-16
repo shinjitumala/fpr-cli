@@ -168,17 +168,33 @@ pub trait Args<C>: Sized {
         let a = Self::new(c, &mut args)?;
 
         let u = args
-            .keys
+            .k
             .iter()
-            .filter(|k| !k.used)
-            .filter(|k| args.args[k.i] != PFX)
-            .map(|k| args.args[k.i])
+            .filter(|k| !k.used && !k.k.is_none_or(|x| x == PFX))
+            .map(|k| {
+                match k.k {
+                    Some(e) => vec![e],
+                    None => vec![],
+                }
+                .into_iter()
+                .chain(k.v.iter().map(|e| *e))
+            })
+            .flatten()
             .collect::<Vec<_>>();
         if !u.is_empty() {
             return Err(ArgsParseErr::UnknownArgs(u, Self::usage(c)).into());
         }
 
-        let _ = a.run(c).map_err(|s| ArgsErr::Run(s))?;
+        let r = args
+            .k
+            .iter()
+            .filter(|k| k.k.is_none_or(|x| x == PFX))
+            .map(|k| k.v.iter())
+            .flatten()
+            .map(|e| *e)
+            .collect();
+
+        let _ = a.run(c, r).map_err(|s| ArgsErr::Run(s))?;
         Ok(())
     }
     fn next<'a>(c: &C, s: &mut ParseCtx<'a>, args: &[Arg<'a>]) -> Result<(), ActsErr<'a>> {
@@ -195,13 +211,13 @@ pub trait Args<C>: Sized {
         Self::add_usage(c, &mut r);
         to_table(&r)
     }
-    fn new<'a, 'b>(c: &C, args: &mut ParsedArgs<'a, 'b>) -> Result<Self, ArgsParseErr<'b>>;
+    fn new<'a, 'b>(c: &C, args: &mut ParsedArgs<'b>) -> Result<Self, ArgsParseErr<'b>>;
     fn desc_act() -> &'static str;
     fn add_paths<'a>(pfx: &Vec<Arg<'a>>, p: &mut Vec<Vec<Arg<'a>>>);
     fn add_usage(c: &C, r: &mut Vec<[String; 4]>);
     fn default(c: &C) -> Self;
 
-    fn run(self, c: &C) -> Result<(), String>;
+    fn run(self, c: &C, r: Vec<&str>) -> Result<(), String>;
 }
 
 pub trait Parse<'a>

@@ -81,72 +81,55 @@ impl<'a> From<ArgsParseErr<'a>> for ArgsErr<'a> {
 
 pub const PFX: &'static str = "--";
 #[derive(Debug)]
-pub struct Key {
-    pub i: usize,
+pub struct Key<'a> {
+    pub k: Option<&'a str>,
+    pub v: Vec<&'a str>,
     pub used: bool,
 }
 #[derive(Debug)]
-pub struct ParsedArgs<'b, 'c> {
-    pub args: &'b [&'c str],
-    pub keys: Vec<Key>,
+pub struct ParsedArgs<'c> {
+    pub k: Vec<Key<'c>>,
 }
 
-impl<'b, 'c> ParsedArgs<'b, 'c> {
-    pub fn consume(&mut self, name: &str) -> Option<&[&'c str]> {
-        let (i, k) = self
-            .keys
+impl<'c> ParsedArgs<'c> {
+    pub fn consume(&mut self, name: &str) -> Option<&Vec<&'c str>> {
+        let k = self
+            .k
             .iter_mut()
-            .enumerate()
-            .find(|(_, k)| self.args[k.i] == name)?;
+            .find(|k| k.k.map(|k| k == name).unwrap_or(false))?;
         assert!(
             !k.used,
             "A token should not ever be consumed twice. Probably a duplicate argument: {name}"
         );
         k.used = true;
-        let idx = k.i + 1;
-        Some(if i == self.keys.len() - 1 {
-            &self.args[idx..]
-        } else if self.args[self.keys[i + 1].i] == PFX {
-            &self.args[self.keys[i + 1].i + 1..]
-        } else {
-            &self.args[idx..self.keys[i + 1].i]
-        })
+        Some(&k.v)
     }
 }
 
 pub enum ParsedArgsErr<'a> {
     UnexpectedToken(Arg<'a>),
 }
-impl<'b, 'c> ParsedArgs<'b, 'c> {
-    pub fn new(args: &'b [&'c str]) -> Result<ParsedArgs<'b, 'c>, ParsedArgsErr<'c>> {
-        let mut end = false;
+impl<'c> ParsedArgs<'c> {
+    pub fn new(args: &[&'c str]) -> Result<ParsedArgs<'c>, ParsedArgsErr<'c>> {
+        let mut last: Option<&str> = None;
         let r = ParsedArgs {
-            args,
-            keys: args
+            k: args
                 .iter()
-                .enumerate()
-                .filter(|&(_, a)| {
-                    if end {
-                        false
+                .filter_map(|a| {
+                    if a.starts_with(PFX) {
+                        last = Some(a);
+                        None
                     } else {
-                        let pfx = a.starts_with(PFX);
-                        if pfx && a.len() == PFX.len() {
-                            end = true;
-                            true
-                        } else {
-                            pfx
-                        }
+                        Some((last, *a))
                     }
                 })
-                .map(|(i, _)| Key { i, used: false })
+                .into_group_map()
+                .into_iter()
+                .map(|(k, v)| Key { k, v, used: false })
                 .collect(),
         };
 
-        if !r.keys.is_empty() && r.keys[0].i != 0 {
-            Err(ParsedArgsErr::UnexpectedToken(args[0]))
-        } else {
-            Ok(r)
-        }
+        Ok(r)
     }
 }
 
@@ -182,7 +165,7 @@ where
         i: Init<C, Self::I>,
         k: &'static str,
         c: &C,
-        p: &mut ParsedArgs<'a, 'b>,
+        p: &mut ParsedArgs<'b>,
     ) -> Result<Self, ArgParseErr<'b>>;
     fn desc2(i: Init<C, Self::I>, d: &'static str, k: &'static str, c: &C) -> [String; 4];
     fn default2(c: &C, i: Init<C, Self::I>) -> Self;
@@ -194,7 +177,7 @@ impl<'a, 'b, C, T: Parse<'a> + Default> Parse2<'b, 'a, C> for T {
         i: Init<C, Self::I>,
         k: &'static str,
         c: &C,
-        p: &mut ParsedArgs<'b, 'a>,
+        p: &mut ParsedArgs<'a>,
     ) -> Result<Self, ArgParseErr<'a>> {
         match p.consume(k) {
             Some(args) => {
@@ -227,7 +210,7 @@ impl<'a, 'b, Ctx, T: Parse<'a>> Parse2<'b, 'a, Ctx> for Option<T> {
         i: Init<Ctx, T>,
         k: &'static str,
         c: &Ctx,
-        p: &mut ParsedArgs<'b, 'a>,
+        p: &mut ParsedArgs<'a>,
     ) -> Result<Self, ArgParseErr<'a>> {
         match p.consume(k) {
             Some(args) => {
@@ -265,7 +248,7 @@ impl<'a, 'b, Ctx, T: Parse<'a> + Display> Parse2<'b, 'a, Ctx> for Vec<T> {
         i: Init<Ctx, Self::I>,
         k: &'static str,
         c: &Ctx,
-        p: &mut ParsedArgs<'b, 'a>,
+        p: &mut ParsedArgs<'a>,
     ) -> Result<Self, ArgParseErr<'a>> {
         match p.consume(k) {
             Some(args) => {
@@ -301,6 +284,7 @@ impl<'a, 'b, Ctx, T: Parse<'a> + Display> Parse2<'b, 'a, Ctx> for Vec<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct OptVec<T: Display>(pub Vec<T>);
 impl<T: Display> From<Vec<T>> for OptVec<T> {
     fn from(v: Vec<T>) -> Self {
@@ -318,7 +302,7 @@ impl<'a, 'b, Ctx, T: Parse<'a>> Parse2<'b, 'a, Ctx> for OptVec<T> {
         i: Init<Ctx, Self::I>,
         k: &'static str,
         c: &Ctx,
-        p: &mut ParsedArgs<'b, 'a>,
+        p: &mut ParsedArgs<'a>,
     ) -> Result<Self, ArgParseErr<'a>> {
         match p.consume(k) {
             Some(args) => {
