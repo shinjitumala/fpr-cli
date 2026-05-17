@@ -78,6 +78,16 @@ impl<'a> From<ArgsParseErr<'a>> for ArgsErr<'a> {
         Self::Parse(v)
     }
 }
+impl<'a> Display for ArgsErr<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use ArgsErr::*;
+        let e = match self {
+            Run(e) => e.to_string(),
+            Parse(e) => e.to_string(),
+        };
+        write!(f, "{e}")
+    }
+}
 
 pub const PFX: &'static str = "--";
 #[derive(Debug)]
