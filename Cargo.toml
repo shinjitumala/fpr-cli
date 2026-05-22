@@ -1,6 +1,6 @@
 [package]
 name = "fpr-cli"
-version = "0.4.3"
+version = "0.4.4"
 authors = ["Shinji Hoshino <funny.pig.run@gmail.com>"]
 description = "A library that allows one to write cli tools quickly."
 edition = "2021"
@@ -19,4 +19,5 @@ inquire = "0.9.1"
 fuzzy-matcher = "0.3.7"
 shellexpand = "3.1.1"
 chrono = "0.4.42"
-fpr-cli-derives = "0.4.1"
+fpr-cli-derives = "0.4.4"
+thiserror = "2.0.18"

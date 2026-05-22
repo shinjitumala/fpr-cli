@@ -7,11 +7,12 @@ mod com {
     pub use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
     pub use inquire::{
         autocompletion::Replacement, list_option::ListOption, validator::CustomTypeValidator,
-        validator::ErrorMessage, Autocomplete, CustomType, CustomUserError, InquireError,
-        MultiSelect, Select, Text,
+        validator::ErrorMessage, Autocomplete, CustomType, CustomUserError, MultiSelect, Select,
+        Text,
     };
     pub use itertools::Itertools;
     pub use std::{env::args, fmt::Display, path::PathBuf, str::FromStr};
+    pub use thiserror::Error;
 }
 
 pub use util::*;
@@ -22,115 +23,50 @@ pub use parse::*;
 
 use com::*;
 
-pub enum ActsErr<'a> {
-    Run(ParseCtx<'a>, String),
-    Inquire(String),
-    ExpectedAct(ParseCtx<'a>, String),
-    UnknownAct(ParseCtx<'a>, &'a str),
-    Args(ParseCtx<'a>, ArgsParseErr<'a>, String),
-}
-
 #[derive(Clone, Debug)]
 pub struct ParseCtx<'a> {
     pub pfx: Vec<Arg<'a>>,
 }
 
-impl<'a> ActsErr<'a> {
-    fn display(self, arg0: &'a Arg) -> DActsErr<'a> {
-        DActsErr { e: self, arg0 }
-    }
+#[derive(Error, Debug)]
+pub enum ErrActs {
+    #[error("Needs help")]
+    Help,
+    #[error("Unknown act '{act}'")]
+    Unknown { act: String },
+    #[error("Expected act.")]
+    Missing,
+    #[error("{e}")]
+    Args {
+        #[from]
+        e: ErrArgs,
+    },
 }
-struct DActsErr<'a> {
-    e: ActsErr<'a>,
-    arg0: Arg<'a>,
-}
-
-impl<'a> Display for ActsErr<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use ActsErr::*;
-        match self {
-            Run(_, ref e) => write!(f, "Failed to run:\n{e}"),
-            Inquire(ref e) => write!(f, "{e}"),
-            ExpectedAct(_, _) => write!(f, "Expected an act.\n"),
-            UnknownAct(_, ref e) => write!(f, "Unknown act '{e}.'\n"),
-            Args(_, ref e, _) => match e {
-                ArgsParseErr::Help(_) => write!(f, "{e}"),
-                _ => write!(f, "Failed to parse opts.\n{e}\n"),
-            },
-        }
-    }
-}
-impl<'a> Display for DActsErr<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use ActsErr::*;
-        write!(f, "{}", self.e)?;
-        match self.e {
-            ExpectedAct(ref c, ref u) => {
-                write!(f, "Usage: {} {} <action>\n{u}", self.arg0, c.pfx.join(" "))?;
-            }
-            UnknownAct(ref c, ref u) => {
-                write!(f, "Usage: {} {} <action>\n{u}", self.arg0, c.pfx.join(" "))?;
-            }
-            Args(ref c, _, ref u) => {
-                write!(
-                    f,
-                    "Usage: {} {} <opts...>\nOpts:\n{u}",
-                    self.arg0,
-                    c.pfx.join(" ")
-                )?;
-            }
-            _ => (),
-        };
-        Ok(())
-    }
-}
-impl<'a> From<InquireError> for ActsErr<'a> {
-    fn from(v: InquireError) -> Self {
-        Self::Inquire(format!("{v}"))
-    }
-}
-
 pub type Arg<'a> = &'a str;
 pub trait Acts<C>: Sized {
-    fn run(c: &C) -> Result<(), String> {
+    fn run(c: &C) -> Result<(), ErrActs> {
         let args = args().collect_vec();
         let a: Vec<_> = args.iter().map(|e| e.as_str()).collect();
         let mut s = ParseCtx { pfx: vec![] };
-        Self::next(c, &mut s, &a[1..]).map_err(|e| format!("{}", e.display(&a[0])))
+        let r = Self::next(c, &mut s, &a[1..]);
+        if let Err(e) = &r {
+            println!("Available acts:\n{}", Self::usage());
+            match e {
+                ErrActs::Help => return Ok(()),
+                _ => (),
+            }
+        }
+        r
     }
 
-    fn next<'a>(c: &C, s: &mut ParseCtx<'a>, args: &[Arg<'a>]) -> Result<(), ActsErr<'a>> {
+    fn next<'a>(c: &C, s: &mut ParseCtx<'a>, args: &[Arg<'a>]) -> Result<(), ErrActs> {
         if args.is_empty() {
-            print!("{}", ActsErr::ExpectedAct(s.to_owned(), Self::usage()));
-            return Self::next(c, s, &[Self::select_act()?]);
+            return Err(ErrActs::Missing)?;
         };
         let a = &args[0];
         let args = &args[1..];
-
-        use ActsErr::*;
-        match Self::next_impl(c, s, a, args) {
-            Err(e) => match e {
-                UnknownAct(_, _) => {
-                    print!("{e}");
-                    Self::next(c, s, &[Self::select_act()?])
-                }
-                _ => return Err(e),
-            },
-            e => return e,
-        }
+        Self::next_impl(c, s, a, args)
     }
-    fn select_act<'a>() -> Result<&'static str, ActsErr<'a>> {
-        let opts: Vec<_> = to_lines(&Self::usage_v())
-            .into_iter()
-            .enumerate()
-            .map(|(i, o)| ListOption::new(i, o))
-            .collect();
-        Ok(Self::opts()[Select::new("Choose an action.", opts)
-            .with_page_size(50)
-            .prompt()?
-            .index])
-    }
-
     fn list<'a>() -> Vec<Vec<Arg<'a>>> {
         let pfx = vec![];
         let mut res: Vec<Vec<Arg<'a>>> = vec![];
@@ -147,22 +83,28 @@ pub trait Acts<C>: Sized {
         s: &mut ParseCtx<'a>,
         a: &Arg<'a>,
         args: &[Arg<'a>],
-    ) -> Result<(), ActsErr<'a>>;
+    ) -> Result<(), ErrActs>;
     fn desc_act() -> &'static str;
     fn usage_v() -> Vec<[&'static str; 2]>;
     fn add_paths<'a>(pfx: &Vec<Arg<'a>>, p: &mut Vec<Vec<Arg<'a>>>);
 }
-pub trait Args<C>: Sized {
-    fn next_impl<'a>(c: &C, args: &[Arg<'a>]) -> Result<(), ArgsErr<'a>> {
-        let mut args = ParsedArgs::new(args).map_err(|e| {
-            use ParsedArgsErr::*;
-            match e {
-                UnexpectedToken(a) => ArgsParseErr::UnexpectedToken(a, Self::usage(c)),
-            }
-        })?;
 
+#[derive(Error, Debug)]
+pub enum ErrArgs {
+    #[error("Needs help")]
+    Help,
+    #[error("Unknown args '{}'", arg.join(", "))]
+    Unknown { arg: Vec<String> },
+    #[error("Failed while parsing arg '{arg}': '{e}'")]
+    Arg { arg: String, e: ErrArg },
+    #[error("{e}")]
+    Run { e: String },
+}
+pub trait Args<C>: Sized {
+    fn next_impl<'a>(c: &C, args: &[Arg<'a>]) -> Result<(), ErrArgs> {
+        let mut args = ParsedArgs::new(args);
         if args.consume(&format!("{PFX}help")).is_some() {
-            return Err(ArgsParseErr::Help(Self::usage(c)).into());
+            return Err(ErrArgs::Help);
         }
 
         let a = Self::new(c, &mut args)?;
@@ -180,9 +122,10 @@ pub trait Args<C>: Sized {
                 .chain(k.v.iter().map(|e| *e))
             })
             .flatten()
-            .collect::<Vec<_>>();
+            .map(|e| e.to_owned())
+            .collect_vec();
         if !u.is_empty() {
-            return Err(ArgsParseErr::UnknownArgs(u, Self::usage(c)).into());
+            return Err(ErrArgs::Unknown { arg: u });
         }
 
         let r = args
@@ -194,24 +137,18 @@ pub trait Args<C>: Sized {
             .map(|e| *e)
             .collect();
 
-        let _ = a.run(c, r).map_err(|s| ArgsErr::Run(s))?;
+        let _ = a.run(c, r).map_err(|e| ErrArgs::Run { e })?;
         Ok(())
     }
-    fn next<'a>(c: &C, s: &mut ParseCtx<'a>, args: &[Arg<'a>]) -> Result<(), ActsErr<'a>> {
-        match Self::next_impl(c, args) {
-            Err(e) => match e {
-                ArgsErr::Run(r) => Err(ActsErr::Run(s.to_owned(), r)),
-                ArgsErr::Parse(e) => Err(ActsErr::Args(s.to_owned(), e, Self::usage(c))),
-            },
-            Ok(o) => Ok(o),
-        }
+    fn next<'a>(c: &C, _: &mut ParseCtx<'a>, args: &[Arg<'a>]) -> Result<(), ErrArgs> {
+        Self::next_impl(c, args)
     }
     fn usage(c: &C) -> String {
         let mut r: Vec<[String; 4]> = vec![];
         Self::add_usage(c, &mut r);
         to_table(&r)
     }
-    fn new<'a, 'b>(c: &C, args: &mut ParsedArgs<'b>) -> Result<Self, ArgsParseErr<'b>>;
+    fn new<'a, 'b>(c: &C, args: &mut ParsedArgs<'b>) -> Result<Self, ErrArgs>;
     fn desc_act() -> &'static str;
     fn add_paths<'a>(pfx: &Vec<Arg<'a>>, p: &mut Vec<Vec<Arg<'a>>>);
     fn add_usage(c: &C, r: &mut Vec<[String; 4]>);
@@ -220,11 +157,20 @@ pub trait Args<C>: Sized {
     fn run(self, c: &C, r: Vec<&str>) -> Result<(), String>;
 }
 
+#[derive(Error, Debug)]
+pub enum ErrVal {
+    #[error("Failed to parse '{input}' as type '{typename}': {error}")]
+    Err {
+        input: String,
+        typename: String,
+        error: String,
+    },
+}
 pub trait Parse<'a>
 where
     Self: Sized + Display,
 {
-    fn parse(i: Arg<'a>) -> Result<Self, ParseErr<'a>>;
+    fn parse(i: Arg<'a>) -> Result<Self, ErrVal>;
     fn desc() -> &'static str;
 }
 #[derive(Debug)]

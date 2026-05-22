@@ -1,94 +1,5 @@
 use crate::com::*;
 
-pub enum Parse2Err {
-    ExpectedOne,
-    Rquired,
-    ExpectedAtLeastOne,
-}
-pub enum ArgParseErr<'a> {
-    ParseErr(ParseErr<'a>),
-    Parse2Err(Parse2Err),
-}
-impl<'a> From<ParseErr<'a>> for ArgParseErr<'a> {
-    fn from(v: ParseErr<'a>) -> Self {
-        ArgParseErr::ParseErr(v)
-    }
-}
-impl<'a> From<Parse2Err> for ArgParseErr<'a> {
-    fn from(v: Parse2Err) -> Self {
-        ArgParseErr::Parse2Err(v)
-    }
-}
-pub enum ArgsParseErr<'a> {
-    UnexpectedToken(Arg<'a>, String),
-    Help(String),
-    UnknownArgs(Vec<Arg<'a>>, String),
-    Arg(&'static str, ArgParseErr<'a>, String),
-}
-impl<'a> Display for ArgsParseErr<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use ArgsParseErr::*;
-        match self {
-            UnexpectedToken(ref a, _) => write!(f, "Unexpected token '{a}'")?,
-            Help(_) => (),
-            UnknownArgs(ref a, _) => write!(
-                f,
-                "Unknown options '{}'",
-                a.into_iter().map(|a| format!(r#""{a}""#)).join(", ")
-            )?,
-            Arg(ref a, ref e, _) => write!(f, "Error parsing option '{a}.'\n{e}")?,
-        };
-        Ok(())
-    }
-}
-impl<'a> Display for ArgParseErr<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use ArgParseErr::*;
-        match self {
-            ParseErr(e) => write!(f, "{e}"),
-            Parse2Err(e) => write!(f, "{e}"),
-        }
-    }
-}
-impl<'a> Display for ParseErr<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Failed to parse '{}' as '{}' because '{}'",
-            self.i, self.ty, self.e
-        )
-    }
-}
-impl Display for Parse2Err {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use Parse2Err::*;
-        match self {
-            ExpectedOne => write!(f, "Expected one value."),
-            Rquired => write!(f, "Required."),
-            ExpectedAtLeastOne => write!(f, "Expected one value minimum."),
-        }
-    }
-}
-pub enum ArgsErr<'a> {
-    Run(String),
-    Parse(ArgsParseErr<'a>),
-}
-impl<'a> From<ArgsParseErr<'a>> for ArgsErr<'a> {
-    fn from(v: ArgsParseErr<'a>) -> Self {
-        Self::Parse(v)
-    }
-}
-impl<'a> Display for ArgsErr<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use ArgsErr::*;
-        let e = match self {
-            Run(e) => e.to_string(),
-            Parse(e) => e.to_string(),
-        };
-        write!(f, "{e}")
-    }
-}
-
 pub const PFX: &'static str = "--";
 #[derive(Debug)]
 pub struct Key<'a> {
@@ -116,30 +27,29 @@ impl<'c> ParsedArgs<'c> {
     }
 }
 
-pub enum ParsedArgsErr<'a> {
-    UnexpectedToken(Arg<'a>),
-}
 impl<'c> ParsedArgs<'c> {
-    pub fn new(args: &[&'c str]) -> Result<ParsedArgs<'c>, ParsedArgsErr<'c>> {
+    pub fn new(args: &[&'c str]) -> Self {
         let mut last: Option<&str> = None;
         let r = ParsedArgs {
             k: args
                 .iter()
-                .filter_map(|a| {
+                .map(|a| {
                     if a.starts_with(PFX) {
                         last = Some(a);
-                        None
-                    } else {
-                        Some((last, *a))
                     }
+                    (last, *a)
                 })
                 .into_group_map()
                 .into_iter()
-                .map(|(k, v)| Key { k, v, used: false })
+                .map(|(k, v)| Key {
+                    k,
+                    v: if k.is_some() { v[1..].into() } else { v },
+                    used: false,
+                })
                 .collect(),
         };
 
-        Ok(r)
+        r
     }
 }
 
@@ -165,6 +75,18 @@ impl<C, T: Display> Init<C, T> {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum ErrArg {
+    #[error("Failed while parsing values for '{arg}': {e}")]
+    Val { arg: String, e: ErrVal },
+    #[error("'{arg}' must be one value.")]
+    OnlyOne { arg: String },
+    #[error("'{arg}' is required.")]
+    Required { arg: String },
+    #[error("'{arg}' requires at least one value.")]
+    AtLeastOne { arg: String },
+}
+
 pub trait Parse2<'a, 'b, C>
 where
     Self: Sized,
@@ -176,7 +98,7 @@ where
         k: &'static str,
         c: &C,
         p: &mut ParsedArgs<'b>,
-    ) -> Result<Self, ArgParseErr<'b>>;
+    ) -> Result<Self, ErrArg>;
     fn desc2(i: Init<C, Self::I>, d: &'static str, k: &'static str, c: &C) -> [String; 4];
     fn default2(c: &C, i: Init<C, Self::I>) -> Self;
 }
@@ -188,16 +110,16 @@ impl<'a, 'b, C, T: Parse<'a> + Default> Parse2<'b, 'a, C> for T {
         k: &'static str,
         c: &C,
         p: &mut ParsedArgs<'a>,
-    ) -> Result<Self, ArgParseErr<'a>> {
+    ) -> Result<Self, ErrArg> {
         match p.consume(k) {
             Some(args) => {
                 if args.len() != 1 {
-                    Err(Parse2Err::ExpectedOne)?
+                    Err(ErrArg::OnlyOne { arg: k.into() })
                 } else {
-                    Ok(T::parse(&args[0])?)
+                    Ok(T::parse(&args[0]).map_err(|e| ErrArg::Val { arg: k.into(), e })?)
                 }
             }
-            None => Ok(i.get(c).ok_or(Parse2Err::Rquired)?),
+            None => Ok(i.get(c).ok_or(ErrArg::Required { arg: k.into() })?),
         }
     }
 
@@ -221,13 +143,15 @@ impl<'a, 'b, Ctx, T: Parse<'a>> Parse2<'b, 'a, Ctx> for Option<T> {
         k: &'static str,
         c: &Ctx,
         p: &mut ParsedArgs<'a>,
-    ) -> Result<Self, ArgParseErr<'a>> {
+    ) -> Result<Self, ErrArg> {
         match p.consume(k) {
             Some(args) => {
                 if args.len() != 1 {
-                    Err(Parse2Err::ExpectedOne)?
+                    Err(ErrArg::OnlyOne { arg: k.into() })
                 } else {
-                    Ok(Some(T::parse(&args[0])?))
+                    Ok(Some(
+                        T::parse(&args[0]).map_err(|e| ErrArg::Val { arg: k.into(), e })?,
+                    ))
                 }
             }
             None => Ok(match i.get(c) {
@@ -259,15 +183,15 @@ impl<'a, 'b, Ctx, T: Parse<'a> + Display> Parse2<'b, 'a, Ctx> for Vec<T> {
         k: &'static str,
         c: &Ctx,
         p: &mut ParsedArgs<'a>,
-    ) -> Result<Self, ArgParseErr<'a>> {
+    ) -> Result<Self, ErrArg> {
         match p.consume(k) {
             Some(args) => {
                 let args = args
                     .iter()
-                    .map(|a| T::parse(a))
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .map(|a| T::parse(a).map_err(|e| ErrArg::Val { arg: k.into(), e }))
+                    .process_results(|i| i.collect_vec())?;
                 if args.is_empty() {
-                    Err(Parse2Err::ExpectedAtLeastOne)?
+                    Err(ErrArg::OnlyOne { arg: k.into() })?;
                 }
                 Ok(args)
             }
@@ -313,13 +237,13 @@ impl<'a, 'b, Ctx, T: Parse<'a>> Parse2<'b, 'a, Ctx> for OptVec<T> {
         k: &'static str,
         c: &Ctx,
         p: &mut ParsedArgs<'a>,
-    ) -> Result<Self, ArgParseErr<'a>> {
+    ) -> Result<Self, ErrArg> {
         match p.consume(k) {
             Some(args) => {
                 let args = args
                     .iter()
-                    .map(|a| T::parse(a))
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .map(|a| T::parse(a).map_err(|e| ErrArg::Val { arg: k.into(), e }))
+                    .process_results(|i| i.collect_vec())?;
                 Ok(args.into())
             }
             None => Ok(match i.get(c) {
