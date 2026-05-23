@@ -11,13 +11,13 @@ repository = "https://github.com/shinjitumala/fpr-cli"
 
 [dependencies]
 itertools = "0.14.0"
-regex = "1.11.3"
-serde = { version = "1.0.227", features = ["derive"] }
-serde_json = "1.0.145"
-unicode-width = "0.2.0"
-inquire = "0.9.1"
+regex = "1.12.3"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+unicode-width = "0.2.2"
+inquire = "0.9.4"
 fuzzy-matcher = "0.3.7"
-shellexpand = "3.1.1"
-chrono = "0.4.42"
-fpr-cli-derives = "0.4.7"
+shellexpand = "3.1.2"
+chrono = "0.4.44"
+fpr-cli-derives = "0.4.8"
 thiserror = "2.0.18"
