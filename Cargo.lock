@@ -257,9 +257,9 @@ dependencies = [
 
 [[package]]
 name = "fpr-cli-derives"
-version = "0.4.5"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78ecb4d27a3b96c2b290c042e439ddc54c2f65d2ef12d4db21071de7ee03cfb3"
+checksum = "35a9be72b52c9764a6140aa32d44077ef53013a5a7b62447ea48e47f78b73826"
 dependencies = [
  "convert_case 0.8.0",
  "darling",

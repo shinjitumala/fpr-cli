@@ -260,6 +260,7 @@ impl From<MyErr> for String {
 
 pub trait Actions: Sized + Clone {
     fn get(prompt: &str, starting_input: Option<&str>) -> Result<Self, MyErr>;
+    fn list() -> &'static [&'static str];
 }
 
 #[derive(Clone)]
