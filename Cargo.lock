@@ -240,7 +240,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "fpr-cli"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "chrono",
  "fpr-cli-derives",
@@ -257,9 +257,9 @@ dependencies = [
 
 [[package]]
 name = "fpr-cli-derives"
-version = "0.4.4"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de7ac4c0c03150926f0b946338908748a578a2fd01a18c914b91cb6f34c6e1af"
+checksum = "78ecb4d27a3b96c2b290c042e439ddc54c2f65d2ef12d4db21071de7ee03cfb3"
 dependencies = [
  "convert_case 0.8.0",
  "darling",

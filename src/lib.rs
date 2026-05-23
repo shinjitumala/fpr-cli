@@ -25,6 +25,7 @@ use com::*;
 
 #[derive(Clone, Debug)]
 pub struct ParseCtx<'a> {
+    pub exec: Arg<'a>,
     pub pfx: Vec<Arg<'a>>,
 }
 
@@ -47,14 +48,16 @@ pub trait Acts<C>: Sized {
     fn run(c: &C) -> Result<(), ErrActs> {
         let args = args().collect_vec();
         let a: Vec<_> = args.iter().map(|e| e.as_str()).collect();
-        let mut s = ParseCtx { pfx: vec![] };
+        let mut s = ParseCtx {
+            exec: a[0],
+            pfx: vec![],
+        };
         let r = Self::next(c, &mut s, &a[1..]);
-        if let Err(e) = &r {
-            println!("Available acts:\n{}", Self::usage());
-            match e {
-                ErrActs::Help => return Ok(()),
-                _ => (),
-            }
+        if r.is_err() {
+            println!(
+                "Use this command for help:\n{} --help",
+                [s.exec].iter().chain(&s.pfx).join(" ")
+            );
         }
         r
     }
@@ -65,7 +68,20 @@ pub trait Acts<C>: Sized {
         };
         let a = &args[0];
         let args = &args[1..];
-        Self::next_impl(c, s, a, args)
+        match Self::next_impl(c, s, a, args) {
+            Ok(_) => Ok(()),
+            Err(e) => match e {
+                ErrActs::Help => {
+                    println!(
+                        "Usage: {}\nActs:\n{}",
+                        [s.exec].iter().chain(&s.pfx).chain(&["<act>"]).join(" "),
+                        Self::usage()
+                    );
+                    Ok(())
+                }
+                e => Err(e),
+            },
+        }
     }
     fn list<'a>() -> Vec<Vec<Arg<'a>>> {
         let pfx = vec![];
@@ -140,8 +156,32 @@ pub trait Args<C>: Sized {
         let _ = a.run(c, r).map_err(|e| ErrArgs::Run { e })?;
         Ok(())
     }
-    fn next<'a>(c: &C, _: &mut ParseCtx<'a>, args: &[Arg<'a>]) -> Result<(), ErrArgs> {
-        Self::next_impl(c, args)
+    fn next<'a>(c: &C, s: &mut ParseCtx<'a>, args: &[Arg<'a>]) -> Result<(), ErrArgs> {
+        match Self::next_impl(c, args) {
+            Err(e) => match e {
+                ErrArgs::Help => {
+                    let u = Self::usage(c);
+                    let has_positional = u.split("\n").any(|e| !e.starts_with(PFX));
+                    let v = if !has_positional {
+                        [s.exec]
+                            .iter()
+                            .chain(&s.pfx)
+                            .chain(&["<opts...>"])
+                            .join(" ")
+                    } else {
+                        [s.exec]
+                            .iter()
+                            .chain(&s.pfx)
+                            .chain(&["<positional...>", "<opts...>", "--", "<positional...>"])
+                            .join(" ")
+                    };
+                    println!("Usage: {v}\nOptions:\n{u}");
+                    Ok(())
+                }
+                e => Err(e),
+            },
+            Ok(_) => Ok(()),
+        }
     }
     fn usage(c: &C) -> String {
         let mut r: Vec<[String; 4]> = vec![];
