@@ -72,11 +72,7 @@ pub trait Acts<C>: Sized {
             Ok(_) => Ok(()),
             Err(e) => match e {
                 ErrActs::Help => {
-                    println!(
-                        "Usage: {}\nActs:\n{}",
-                        [s.exec].iter().chain(&s.pfx).chain(&["<act>"]).join(" "),
-                        Self::usage()
-                    );
+                    println!("{}", Self::full_usage(s.exec, &s.pfx));
                     Ok(())
                 }
                 e => Err(e),
@@ -91,6 +87,13 @@ pub trait Acts<C>: Sized {
     }
     fn usage() -> String {
         to_table(&Self::usage_v())
+    }
+    fn full_usage(exec: &str, pfx: &[&str]) -> String {
+        format!(
+            "Usage: {}\nActs:\n{}",
+            [exec].iter().chain(pfx).chain(&["<act>"]).join(" "),
+            Self::usage()
+        )
     }
 
     fn opts() -> Vec<&'static str>;
@@ -160,22 +163,7 @@ pub trait Args<C>: Sized {
         match Self::next_impl(c, args) {
             Err(e) => match e {
                 ErrArgs::Help => {
-                    let u = Self::usage(c);
-                    let has_positional = u.split("\n").any(|e| !e.starts_with(PFX));
-                    let v = if !has_positional {
-                        [s.exec]
-                            .iter()
-                            .chain(&s.pfx)
-                            .chain(&["<opts...>"])
-                            .join(" ")
-                    } else {
-                        [s.exec]
-                            .iter()
-                            .chain(&s.pfx)
-                            .chain(&["<positional...>", "<opts...>", "--", "<positional...>"])
-                            .join(" ")
-                    };
-                    println!("Usage: {v}\nOptions:\n{u}");
+                    println!("{}", Self::full_usage(c, s.exec, &s.pfx));
                     Ok(())
                 }
                 e => Err(e),
@@ -187,6 +175,20 @@ pub trait Args<C>: Sized {
         let mut r: Vec<[String; 4]> = vec![];
         Self::add_usage(c, &mut r);
         to_table(&r)
+    }
+    fn full_usage(c: &C, exec: &str, pfx: &[&str]) -> String {
+        let u = Self::usage(c);
+        let has_positional = u.split("\n").any(|e| !e.starts_with(PFX));
+        let v = if !has_positional {
+            [exec].iter().chain(pfx).chain(&["<opts...>"]).join(" ")
+        } else {
+            [exec]
+                .iter()
+                .chain(pfx)
+                .chain(&["<positional...>", "<opts...>", "--", "<positional...>"])
+                .join(" ")
+        };
+        format!("Usage: {v}\nOptions:\n{u}")
     }
     fn new<'a, 'b>(c: &C, args: &mut ParsedArgs<'b>) -> Result<Self, ErrArgs>;
     fn desc_act() -> &'static str;
