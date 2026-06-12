@@ -6,9 +6,18 @@ use regex::Regex;
 use crate::com::*;
 
 pub fn to_lines<const S: usize, I: AsRef<str>>(a: &[[I; S]]) -> Vec<String> {
-    use unicode_width::*;
+    fn width(s: &str) -> usize {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "unicode")] {
+                use unicode_width::*;
+                s.width()
+            } else {
+                s.len()
+            }
+        }
+    }
     let w = match (0..S)
-        .map(|i| a.iter().map(|l| l[i].as_ref().width()).max().ok_or(()))
+        .map(|i| a.iter().map(|l| width(l[i].as_ref())).max().ok_or(()))
         .collect::<Result<Vec<_>, _>>()
     {
         Ok(e) => e,
@@ -20,7 +29,7 @@ pub fn to_lines<const S: usize, I: AsRef<str>>(a: &[[I; S]]) -> Vec<String> {
         .map(|v| {
             v.iter()
                 .enumerate()
-                .map(|(i, s)| format!("{}{: <2$}", s.as_ref(), "", w[i] - s.as_ref().width()))
+                .map(|(i, s)| format!("{}{: <2$}", s.as_ref(), "", w[i] - width(s.as_ref())))
                 .join(" ")
         })
         .collect()

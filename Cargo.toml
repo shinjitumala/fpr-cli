@@ -1,6 +1,6 @@
 [package]
 name = "fpr-cli"
-version = "0.4.10"
+version = "0.4.11"
 authors = ["Shinji Hoshino <funny.pig.run@gmail.com>"]
 description = "A library that allows one to write cli tools quickly."
 edition = "2021"
@@ -14,10 +14,14 @@ itertools = "0.14.0"
 regex = "1.12.3"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
-unicode-width = "0.2.2"
+unicode-width = { version = "0.2.2", optional = true }
 inquire = "0.9.4"
 fuzzy-matcher = "0.3.7"
 shellexpand = "3.1.2"
 chrono = "0.4.44"
 fpr-cli-derives = "0.4.8"
 thiserror = "2.0.18"
+cfg-if = "1.0.4"
+
+[features]
+unicode = ["dep:unicode-width"]
